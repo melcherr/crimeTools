@@ -1,0 +1,78 @@
+srvyr_crosstable <- function(data,
+                             vars,
+                             group,
+                             na_values = NULL,
+                             na_group = NULL,
+                             fun = survey_prop,
+                             vartype = "ci",
+                             ...) {
+
+  if (is.data.frame(data)) data <- srvyr::as_survey_design(.data = data, ids = 1)
+
+  group <- enquo(group)
+
+  if (str_detect(expr_text(expr({{vars}})), ":|,") & !quo_is_null(group)) {
+
+    parameter <- as.list(match.call())
+    parameter <- parameter[which(names(parameter) %nin% c("vars"))[-1]]
+
+    if (any(stringr::str_detect(sjlabelled::to_character(parameter$group), "\\{"))) {
+
+      parameter <- purrr::map(.x = parameter,
+                              ~eval(.x, envir = parent.frame(n = 3)))
+
+    }
+
+    vars_syms <- syms(colnames(select(data, {{vars}})))
+    names(vars_syms) <- sjlabelled::get_label(dplyr::select(data$variables, {{vars}}))
+
+    purrr::map_dfr(.x = vars_syms,
+                   function(x) {
+
+                     parameter <- parameter %>%
+                       append(., list(vars = x))
+
+                     expr(srvyr_crosstable(!!!parameter)) %>%
+                       eval_tidy(.)
+
+                   },
+                   .id = "var_label")
+
+  } else {
+
+    data <- data %>%
+      dplyr::select({{vars}}, {{group}})
+
+    group_name <-  sjlabelled::get_label(data$variables[[1]])
+    value_labels <- sjlabelled::get_labels(data$variables, values = "n")
+
+    data <- data %>%
+      dplyr::mutate({{vars}} := ifelse({{vars}} %in% na_values, NA_real_,
+                                       {{vars}}),
+                    {{group}} := ifelse({{group}} %in% na_group,
+                                        NA_real_,
+                                        {{group}})) %>%
+      na.omit()
+
+    data %>%
+      dplyr::group_by({{group}}, {{vars}}) %>%
+      dplyr::summarise(proportion = {{fun}}(vartype, ...),
+                       n = survey_total()) %>%
+      dplyr::ungroup %>%
+      dplyr::mutate({{group}} := sjlabelled::set_labels(x = {{group}},
+                                                        labels = value_labels[[2]],
+                                                        drop.na = TRUE),
+                    {{vars}} := sjlabelled::set_labels(x = {{vars}},
+                                                       labels = value_labels[[1]],
+                                                       drop.na = TRUE),
+                    n = round(n, 0),
+                    group_label = sjlabelled::to_character({{group}})) %>%
+      sjlabelled::drop_labels() %>%
+      dplyr::rename(var_value = {{vars}},
+                    group_value = {{group}}) %>%
+      dplyr::mutate(var_label = group_name,
+                    var_name = as_name(quo({{vars}})))
+
+  }
+
+}

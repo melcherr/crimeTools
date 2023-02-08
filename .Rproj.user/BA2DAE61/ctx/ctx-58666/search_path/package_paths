@@ -1,0 +1,8 @@
+crimeTools="E:/Documents/Installationsordner/R_PackageDev/crimeTools"
+datasets="C:/Program Files/R/R-4.2.2/library/datasets"
+grDevices="C:/Program Files/R/R-4.2.2/library/grDevices"
+graphics="C:/Program Files/R/R-4.2.2/library/graphics"
+methods="C:/Program Files/R/R-4.2.2/library/methods"
+roxygen2="E:/Documents/Installationsordner/R/win-library/3.5/roxygen2"
+stats="C:/Program Files/R/R-4.2.2/library/stats"
+utils="C:/Program Files/R/R-4.2.2/library/utils"

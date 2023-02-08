@@ -1,0 +1,5 @@
+curly <- function() {
+
+  remedy:::enclose("{{", "}}")
+
+}

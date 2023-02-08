@@ -1,0 +1,241 @@
+sipsTools::curly()
+sipsTools::curly("x")
+sipsTools::curly
+sipsTools::curly
+sipsTools::curly
+sipsTools::curly()
+sipsTools::curly("wd")
+curly <- function(x = NULL) {
+if (is.null(x)) x <- ""
+suppressMessages(rstudioapi::insertText(paste0("{{", x, "}}")))
+}
+curly()
+curly <- function(x = NULL) {
+if (rlang::quo_is_null(x)) x <- ""
+rstudioapi::insertText(paste0("{{", x, "}}"))
+}
+curly
+curly()
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly()
+curly()
+curly <- function(x = NULL) {
+x <- quo(x)
+if (rlang::quo_is_null(x)) x <- ""
+rstudioapi::insertText(englue("{{", {{ x }}, "}}"))
+}
+curly()
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly()
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly()
+curly(x)
+curly(y)
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly(y)
+curly()
+curly(1 + 1)
+curly <- function(x = NULL) {
+x <- sym(x)
+rstudioapi::insertText(englue("{{ {{ x }} }}"))
+}
+curly(1 + 1)
+curly(y)
+curly()
+curly()
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly(y)
+curly(1 + 1)
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly(1 + 1)
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly(1 + 1)
+curly(y)
+curly()
+?englue
+curly(expr(x))
+curly <- function(x = NULL) {
+x <- expr(x)
+rstudioapi::insertText(englue("{{ {{ x }} }}"))
+}
+curly(y)
+curly
+curly()
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly()
+g <- function(var) englue("{{ var }}")
+g(cyl)
+curly <- function(x = NULL) {
+x <- expr(x)
+rstudioapi::insertText(rlang::englue(" {{ x }} "))
+}
+g <- function(var) englue("{{ var }}")
+g(cyl)
+curly()
+curly(y)
+curly <- function(x = NULL) {
+rstudioapi::insertText(rlang::englue(" {{ x }} "))
+}
+curly(y)
+curly(f)
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly(f)
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly(f)
+?glue
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly(f)
+curly()
+curly("f")
+rm(list = ls8)
+rm(list = ls())
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curl()
+curl()
+curly()
+curly <- function(x = NULL) {
+if (rlang::quo_is_null(x))  x <- ""
+rstudioapi::insertText(paste0("{{", rlang::englue("{{ x }}"), "}}"))
+}
+curly()
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly()
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly()
+curly()
+curly(y)
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly(y)
+curly()
+curly()
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly()
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly()
+curly("y")
+curly(y)
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly(y)
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly(y)
+curly <- function(x = NULL) {
+library(rlang)
+x <- enquo(x)
+if (quo_is_null(x)) "{{}}"
+else rstudioapi::insertText(paste0("{{", englue("{{ x }}"), "}}"))
+}
+curly(y)
+{{"<y"}}
+{{"y"}}
+curly()
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly()
+{{"y"}}
+curly(y)
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+curly()
+curly(l)
+curly(k)
+??enclose
+install.packages("remedy")
+remedy:::enclose
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+source("~/Installationsordner/R_PackageDev/sipsTools/R/curly.R", echo=TRUE)
+library(sipsTools)
+sips_likert()
+sips_likert
+sips_likert()
+?sips_likert
+library(crimeTools)
+library(crimeTools)
+library(sipsTools)
+remove.packages("SimComp", lib="~/Installationsordner/R/win-library/3.5")
+remove.packages("sipsTools", lib="~/Installationsordner/R/win-library/3.5")
+library(crimeTools)
+detach("package:crimeTools", unload = TRUE)
+library(crimeTools)
+devtools::document()
+devtools::document()
+library(crimeTools)
+library(crimeTools)
+roxygenise()
+library(roxygen2)
+roxygenise()
+roxygenise()
+plot_likert()
+plot_likert(
+plot_prevalence()
+plot_prevalence
+library(crimeTools)
+crimeTools
+crimeTools::
+library(crimeTools)
+library(crimeTools)
+devtools::build()
+devtools::install()
+library(crimeTools)
+document()
+devtools::document()
+library(devtools);
+load_all("."); # Working directory should be in the package SCC_R_package
+library(devtools);
+load_all("./R/"); # Working directory should be in the package SCC_R_package
+library(roxygen2); # Read in the roxygen2 R package
+roxygenise();
+library(roxygen2); # Read in  roxygen2 R package
+roxygenise()
+?plot_bar()
+?sjPlot::plot_likert()
+library(roxygen2); # Read in  roxygen2 R package
+roxygenise()
+?plot_likert()
+library(crimeTools)
+plot_likert()
+plot_likert
+roxygenise()
+library(crimeTools)
+?plot_likert()
+?plot_lollipop
+plot_likert
+plot_likert()
+roxygenise()
+library(crimeTools)
+plot_likert
+plot_likert()
+library(rland)
+library(rlang)
+plot_likert()
+roxygenise()
+?plot_lollipop
+roxygenise()
+?plot_lollipop
+usethis
+use_package_doc()
+roxygenise()
+?plot_lollipop
+plot_likert()
+?eval_tidy
+?rev
+roxygenise()
+roxygenise()
+library(crimeTools)
+document()
+library(crimeTools)
+plot_likert()
+library(roxygen2)
+roxygenise()
+devtools::document()
+library(crimeTools)
+library(crimeTools)
+library(roxygen2)
+roxygenise()
+devtools::document()
+library(crimeTools)
+roxygenise()
+devtools::document()
+library(crimeTools)
+roxygenise()
+devtools::document()

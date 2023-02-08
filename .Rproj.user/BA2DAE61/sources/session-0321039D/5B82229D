@@ -1,0 +1,27 @@
+{
+    "id": "5B82229D",
+    "path": "~/Installationsordner/R_PackageDev/crimeTools/R/srvyr_crosstable.R",
+    "project_path": "R/srvyr_crosstable.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1674853314662.0,
+    "source_on_save": false,
+    "relative_order": 5,
+    "properties": {
+        "tempName": "Untitled1",
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "25,22",
+        "scrollLine": "6"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1675863395,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1675863395367,
+    "read_only": false,
+    "read_only_alternatives": []
+}
