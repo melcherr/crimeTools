@@ -43,9 +43,8 @@ plot_likert <- function(data,
                         guide = guide_legend(nrow = 1, override.aes = list(alpha = 1)),
                         title = NULL,
                         subtitle = NULL,
-                        xlab = NULL,
-                        ylab = NULL,
                         font_family = "",
+                        theme_custom = theme_crimeTools,
                         ...) {
 
   if (text_position %nin% c("inside", "outside", "outside_colored")) {
@@ -383,9 +382,9 @@ plot_likert <- function(data,
                         x_text = x_text + x/2) %>%
           dplyr::group_by(var, value) %>%
           dplyr::summarise(prop_label = to_string_pct(sum(proportion), dec = dec, fac = 100),
-                           x_text = dplyr::case_when(value == "low" ~ min(x_text) - text_outside_nudge,
-                                                     value == "middle" ~ 0,
-                                                     value == "high" ~ max(x_text) + text_outside_nudge)) %>%
+                           x_text = case_when(value == "low" ~ min(x_text) - text_outside_nudge,
+                                              value == "middle" ~ 0,
+                                              value == "high" ~ max(x_text) + text_outside_nudge)) %>%
           suppressMessages() %>%
           dplyr::distinct()
 
@@ -485,11 +484,10 @@ plot_likert <- function(data,
                          limits = c(-1, 1),
                          breaks = seq(-1, 1, 0.2),
                          labels = scales::percent(abs(seq(-1, 1, 0.2)))) +
-      ggplot2::xlab(xlab) +
-      ggplot2::ylab(ylab) +
+      ggplot2::xlab("") +
+      ggplot2::ylab("") +
       labs(title = title, subtitle = subtitle) +
-      lemon::coord_capped_cart(bottom = "both") +
-      theme_crimeTools(...)
+      {{theme_custom}}(...)
 
     if (text_position %in% c("inside", "outside")) {
 
@@ -587,13 +585,12 @@ plot_likert <- function(data,
                            labels = scales::percent(abs(seq(-1, 1, 0.2)))) +
         ggplot2::xlab("") +
         ggplot2::ylab("") +
-        lemon::coord_capped_cart(bottom = "both") +
-        theme_crimeTools(...)
+        {{theme_custom}}(...)
 
       if (legend == "caption") {
 
         g_missing <- g_missing +
-          labs(caption = glue::glue_collapse(x = glue::glue('<span style="color:{c("#b03060", na_bar_color)}">{c(na_label, valid_label)}</span>'),
+          labs(caption = glue::glue_collapse(x = glue::glue('<span style="color:{c("#b03060", na_bar_color)}">{c("fehlende Werte", "valide Werte")}</span>'),
                                              sep = "   <span style='color:grey80'>|</span>   ")) +
           theme(legend.position = "none")
 

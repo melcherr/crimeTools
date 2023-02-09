@@ -11,11 +11,10 @@ plot_likert(
   weight = NULL,
   reverse_coding = FALSE,
   bar_color_manual = NULL,
-  bar_color_auto = c("#3e6487", "#e36c33"),
+  bar_color_auto = c("#fce629", "#460456"),
   bar_width = 0.65,
   na_values = NULL,
   na_group = NULL,
-  na_label = "fehlende Werte",
   na_drop = TRUE,
   na_plot = "bar",
   na_bar_color = "grey30",
@@ -24,6 +23,8 @@ plot_likert(
   na_graph_nudge = 0.1,
   na_graph_expand = c(0.015, 0),
   na_graph_limits = c(-0.4, 1),
+  na_label = "missing values",
+  valid_label = "valid values",
   text_position = "inside",
   text_outside_nudge = 0.05,
   text_color = "black",
@@ -36,17 +37,14 @@ plot_likert(
   dec = 0,
   axis_text_width = 35,
   legend = "standard",
-  legend_size = 12,
-  legend_just = "center",
-  legend_position = "bottom",
   alpha = 1,
   guide = guide_legend(nrow = 1, override.aes = list(alpha = 1)),
   title = NULL,
   subtitle = NULL,
-  axis_text_y_size = 11,
-  title_position = "plot",
-  font_family = "Calibri",
-  subtitle_size = 16
+  xlab = NULL,
+  ylab = NULL,
+  font_family = "",
+  ...
 )
 }
 \arguments{

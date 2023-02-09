@@ -15,6 +15,7 @@ plot_lollipop(
   alpha = 0.6,
   limits = NULL,
   xlab = NULL,
+  ylab = NULL,
   point_color = "#e36c33",
   point_size = 4,
   segment_color = "#3e6487",
@@ -24,11 +25,12 @@ plot_lollipop(
   subtitle = NULL,
   legend = "standard",
   legend_size = 12,
-  font_family = "Calibri",
+  font_family = "",
   axis_text_size = 12,
   expand = expansion(mult = 0, add = 0),
   scale_x_labels = scales::percent_format(scale = 100, big.mark = ".", decimal.mark =
-    ",")
+    ","),
+  ...
 )
 }
 \arguments{

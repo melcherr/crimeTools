@@ -1,6 +1,6 @@
 #' Calculates and Plots Prevalence Values
 #'
-#' plot_prevalence() is a wrapper around plot_bar() and plot_lollipop(). The function calculates prevalence values and their respective confidence intervals before plotting.
+#' plot_prevalence() is wrapper around plot_bar and plot_lollipop which calculates prevalence values and there confidence intervals before plotting.
 #' @param data Data frame
 #' @param x variable names, must be a symbol or character vector
 #' @param y variable names, must be a symbol or character vector
@@ -68,7 +68,7 @@ plot_prevalence <- function(data,
       srvyr::mutate(srvyr::across(c({{vars}}, {{group}}),
                                   ~ sjlabelled::as_labelled(.))) %>%
       srvyr_crosstable(data = .,
-                       variables = {{vars}},
+                       vars = {{vars}},
                        group = {{group}},
                        na_values = na_values,
                        na_group = na_group) %>%

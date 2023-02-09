@@ -1,0 +1,26 @@
+{
+    "id": "40E0680E",
+    "path": "~/Installationsordner/R_PackageDev/crimeTools/tests/testthat/test-plot_likert.R",
+    "project_path": "tests/testthat/test-plot_likert.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1675936287674.0,
+    "source_on_save": false,
+    "relative_order": 10,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "13,40",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1675973716,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1675973716818,
+    "read_only": false,
+    "read_only_alternatives": []
+}

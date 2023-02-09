@@ -8,6 +8,8 @@ Description: More about what it does (maybe more than one line)
     Use four spaces when indenting paragraphs within the Description.
 License: What license is it under?
 Encoding: UTF-8
-Imports: tidyverse, rlang, srvyr, survey, sjlabelled, sjmisc, glue, patchwork, lemon, ggthemes, ggrepel, ggtext, extrafont
+Imports: tidyverse, rlang, srvyr, survey, sjlabelled, sjmisc, glue, patchwork, lemon, ggthemes, ggrepel, ggtext
 LazyData: true
 RoxygenNote: 7.1.1
+Suggests: 
+    testthat

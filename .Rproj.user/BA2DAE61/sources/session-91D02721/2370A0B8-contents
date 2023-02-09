@@ -9,7 +9,7 @@ git commit -m "Version 1.0.0"
 git remote add origin https://github.com/melcherr/crimeTools
 
 # Rename local branch
-#git branch -M main
+git branch -M main
 
 # And push your updates online
 git push -u origin main

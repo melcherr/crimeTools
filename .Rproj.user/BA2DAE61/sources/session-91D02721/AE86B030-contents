@@ -11,10 +11,10 @@ srvyr_crosstable <- function(data,
 
   group <- enquo(group)
 
-  if (stringr::str_detect(expr_text(expr({{variables}})), ":|,") & !quo_is_null(group)) {
+  if (stringr::str_detect(expr_text(expr({{vars}})), ":|,") & !quo_is_null(group)) {
 
     parameter <- as.list(match.call())
-    parameter <- parameter[which(names(parameter) %nin% c("variables"))[-1]]
+    parameter <- parameter[which(names(parameter) %nin% c("vars"))[-1]]
 
     if (any(stringr::str_detect(sjlabelled::to_character(parameter$group), "\\{"))) {
 
@@ -35,7 +35,8 @@ srvyr_crosstable <- function(data,
                      expr(srvyr_crosstable(!!!parameter)) %>%
                        eval_tidy(.)
 
-                   })
+                   },
+                   .id = "var_label")
 
   } else {
 

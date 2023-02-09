@@ -13,11 +13,10 @@ plot_likert <- function(data,
                         weight = NULL,
                         reverse_coding = FALSE,
                         bar_color_manual = NULL,
-                        bar_color_auto = c("#3e6487", "#e36c33"),
+                        bar_color_auto = c("#fce629", "#460456"),
                         bar_width = 0.65,
                         na_values = NULL,
                         na_group = NULL,
-                        na_label = "fehlende Werte",
                         na_drop = TRUE,
                         na_plot = "bar",
                         na_bar_color = "grey30",
@@ -26,6 +25,8 @@ plot_likert <- function(data,
                         na_graph_nudge = 0.1,
                         na_graph_expand = c(0.015,0),
                         na_graph_limits = c(-0.40, 1),
+                        na_label = "missing values",
+                        valid_label = "valid values",
                         text_position = "inside",
                         text_outside_nudge = 0.05,
                         text_color = "black",
@@ -38,17 +39,14 @@ plot_likert <- function(data,
                         dec = 0,
                         axis_text_width = 35,
                         legend = "standard",
-                        legend_size = 12,
-                        legend_just = "center",
-                        legend_position = "bottom",
                         alpha = 1,
                         guide = guide_legend(nrow = 1, override.aes = list(alpha = 1)),
                         title = NULL,
                         subtitle = NULL,
-                        axis_text_y_size = 11,
-                        title_position = "plot",
-                        font_family = "Calibri",
-                        subtitle_size = 16) {
+                        xlab = NULL,
+                        ylab = NULL,
+                        font_family = "",
+                        ...) {
 
   if (text_position %nin% c("inside", "outside", "outside_colored")) {
 
@@ -297,8 +295,8 @@ plot_likert <- function(data,
 
       if (!na_drop & na_plot == "bar") {
 
-        bar_color <- c(bar_color_manual, na_bar_color)
         labels <- c(labels, na_label)
+        bar_color <- c(bar_color_manual, na_bar_color)
 
       } else bar_color <- bar_color_manual
 
@@ -385,9 +383,9 @@ plot_likert <- function(data,
                         x_text = x_text + x/2) %>%
           dplyr::group_by(var, value) %>%
           dplyr::summarise(prop_label = to_string_pct(sum(proportion), dec = dec, fac = 100),
-                           x_text = case_when(value == "low" ~ min(x_text) - text_outside_nudge,
-                                              value == "middle" ~ 0,
-                                              value == "high" ~ max(x_text) + text_outside_nudge)) %>%
+                           x_text = dplyr::case_when(value == "low" ~ min(x_text) - text_outside_nudge,
+                                                     value == "middle" ~ 0,
+                                                     value == "high" ~ max(x_text) + text_outside_nudge)) %>%
           suppressMessages() %>%
           dplyr::distinct()
 
@@ -487,26 +485,11 @@ plot_likert <- function(data,
                          limits = c(-1, 1),
                          breaks = seq(-1, 1, 0.2),
                          labels = scales::percent(abs(seq(-1, 1, 0.2)))) +
-      ggplot2::xlab("") +
-      ggplot2::ylab("") +
+      ggplot2::xlab(xlab) +
+      ggplot2::ylab(ylab) +
       labs(title = title, subtitle = subtitle) +
       lemon::coord_capped_cart(bottom = "both") +
-      theme_minimal() +
-      theme(text = element_text(family = font_family, colour = "black"),
-            axis.line.x.bottom = element_line(),
-            axis.text = element_text(size = 14, color = "black"),
-            axis.text.y = element_text(size = axis_text_y_size),
-            axis.ticks.y = element_blank(),
-            legend.key.height = unit(0.2, "cm"),
-            legend.key.width = unit(1, "cm"),
-            legend.position = legend_position,
-            legend.justification = legend_just,
-            legend.text = element_text(size = legend_size),
-            panel.grid.major.x = element_line(colour = "gray90", size = 0.1),
-            plot.caption = ggtext::element_markdown(face = "plain", size = legend_size),
-            plot.title.position = title_position,
-            plot.title = element_text(size = 18, face = "bold"),
-            plot.subtitle = element_text(size = subtitle_size))
+      theme_crimeTools(...)
 
     if (text_position %in% c("inside", "outside")) {
 
@@ -570,8 +553,8 @@ plot_likert <- function(data,
         srvy_data %>%
         dplyr::bind_rows(srvy_data_missing) %>%
         dplyr::mutate(missings = ifelse(value %in% na_values,
-                                        "fehlende Werte",
-                                        "valide Werte")) %>%
+                                        na_label,
+                                        valid_label)) %>%
         dplyr::group_by(var, label, missings) %>%
         dplyr::summarise(value = sum(n)) %>%
         dplyr::group_by(var) %>%
@@ -579,16 +562,15 @@ plot_likert <- function(data,
                       perc_text = ifelse(perc > 0,
                                          to_string_pct(perc, dec = dec, fac = 100),
                                          NA_character_),
-                      perc = ifelse(missings == "fehlende Werte", perc * -1, perc),
+                      perc = ifelse(missings == na_label, perc * -1, perc),
                       x_text = ifelse(perc < 0,
                                       perc - na_graph_nudge,
                                       perc / 2))  %>%
         suppressMessages() %>%
         ggplot(data = ., aes(x = perc,
                              y = var,
-                             fill = missings,
-                             alpha = missings)) +
-        geom_bar(stat = "identity",  width = bar_width) +
+                             fill = missings)) +
+        geom_bar(stat = "identity", width = bar_width, alpha = alpha) +
         geom_vline(xintercept = 0, color = "grey40", size = 0.75) +
         geom_text(aes(x = x_text,
                       color = missings,
@@ -597,9 +579,8 @@ plot_likert <- function(data,
                   size = text_label_size,
                   show.legend = FALSE,
                   na.rm = TRUE) +
-        scale_color_manual("", values = c("#b03060", "black")) +
-        scale_fill_manual("", values = c("#b03060", "grey50")) +
-        scale_alpha_manual("", values = c(0.8, 0.8)) +
+        scale_color_manual("", values = c("#b03060",na_bar_text_color)) +
+        scale_fill_manual("", values = c("#b03060", na_bar_color)) +
         scale_x_continuous(expand = na_graph_expand,
                            limits = na_graph_limits,
                            breaks = seq(-1, 1, 0.2),
@@ -607,32 +588,18 @@ plot_likert <- function(data,
         ggplot2::xlab("") +
         ggplot2::ylab("") +
         lemon::coord_capped_cart(bottom = "both") +
-        theme_minimal() +
-        theme(text = element_text(family = font_family, colour = "black"),
-              axis.line.x.bottom = element_line(),
-              axis.text = element_text(size = 14, color = "black"),
-              axis.ticks.y = element_blank(),
-              legend.key.height = unit(0.2, "cm"),
-              legend.key.width = unit(1, "cm"),
-              legend.position = "bottom",
-              legend.text = element_text(size = legend_size),
-              panel.grid.major.x = element_line(colour = "gray90", size = 0.1),
-              plot.title.position = "plot",
-              plot.title = element_text(size = 18, face = "bold"),
-              plot.subtitle = element_text(size = 16, margin = margin(0,0,20,0)),
-              plot.caption = ggtext::element_markdown(face = "plain", size = legend_size),
-              axis.text.y = element_blank())
+        theme_crimeTools(...)
 
       if (legend == "caption") {
 
         g_missing <- g_missing +
-          labs(caption = glue::glue_collapse(x = glue::glue('<span style="color:{c("#b03060", "grey50")}">{c("fehlende Werte", "valide Werte")}</span>'),
+          labs(caption = glue::glue_collapse(x = glue::glue('<span style="color:{c("#b03060", na_bar_color)}">{c(na_label, valid_label)}</span>'),
                                              sep = "   <span style='color:grey80'>|</span>   ")) +
           theme(legend.position = "none")
 
       } else if (legend == "none") g_missing <- g_missing + theme(legend.position = "none")
 
-      (g + g_missing + patchwork::plot_layout(ncol = 2, width = c(0.7, 0.3)))
+      (g | g_missing) + patchwork::plot_layout(ncol = 2, width = c(0.7, 0.3))
 
 
     } else if (na_plot == "bar" & !na_drop & !is.null(na_values)) {
@@ -658,9 +625,9 @@ plot_likert <- function(data,
                                  ymax = ymax,
                                  xmin = xmin,
                                  xmax = xmax,
-                                 fill = value,
-                                 alpha = alpha),
-                             show.legend = FALSE) +
+                                 fill = value),
+                             show.legend = FALSE,
+                             alpha = alpha) +
           ggrepel::geom_text_repel(data = srvy_data_missing,
                                    aes(x = xmin - na_bar_text_nudge,
                                        y = var,
