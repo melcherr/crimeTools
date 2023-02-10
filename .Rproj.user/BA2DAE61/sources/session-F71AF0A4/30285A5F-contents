@@ -1,6 +1,6 @@
-#' Plots a Lollipop Plot
+#' Plot Lollipop Charts
 #'
-#' Plots lollipop plots with or without grouping.
+#' Plots lollipop charts with or without grouping.
 #' @param data Data frame
 #' @param x variable names, must be a symbol or character vector
 #' @param y variable names, must be a symbol or character vector

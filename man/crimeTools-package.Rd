@@ -6,7 +6,7 @@
 \alias{crimeTools-package}
 \title{crimeTools: Data Analysis and Visualization Tools for Crime Analysis}
 \description{
-More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+crimeTools is a package designed to make analysis and visualization of crime survey data straightforward by providing high-level functions for the most common chart types.
+    crimeTools builds on the R packages survey and srvyr to properly weight the results in accordance with the survey and sampling design.
 }
 \keyword{internal}

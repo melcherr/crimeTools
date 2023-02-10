@@ -1,0 +1,1155 @@
+# P A K E T E ----------------------------------------------------------------
+
+library(tidyverse)
+library(ggtext)
+library(sjmisc)
+library(sjlabelled)
+library(sjPlot)
+library(survey)
+library(srvyr)
+library(rlang)
+library(openxlsx)
+library(devEMF)
+library(sf)
+library(parallel)
+library(cowplot)
+
+source("R-Skripte/00_Funktionen.R", encoding = "utf-8")
+
+# D A T E N ----------------------------------------------------------------
+
+skisax <- sjlabelled::read_stata("Daten/01_Befragungsdaten/infas_bereinigter_Rohdatensatz_7529SKiSAX_20221124.dta", 
+                     convert.factors = FALSE, 
+                     encoding = "utf8")
+
+skisax_weighted <- srvyr::as_survey_design(.data = skisax, ids = 1, weights = weight)
+
+logo <- get_png("Daten/05_Logos/SIPS_Logo_Digital.png")
+
+
+# A N A L Y S E N ----------------------------------------------------------------
+
+Analysis <- new.env()
+
+Analysis$font <- "Arial"
+Analysis$weight <- "weight"
+
+Figures <- list()
+
+color <- list("1" = "#3e6487",
+              "2" = c("#e36c33", "#3e6487"),
+              "3" = c('#3e6487', '#c7cdd1', '#e36c33'),
+              "4" = c("#3e6487", "#c7cdd1", "#f6d2c1", "#e36c33"),
+              "5" = c("#3e6487", "#829cb2", "#c7cdd1", "#edad88", "#e36c33"),
+              "6" = c("#3e6487", "#829cb2", "#c7cdd1", "#f6d2c1", "#edad88", "#e36c33"),
+              "conf_colors" = c('#3e6487', '#829cb2'))
+
+color <- list("1" = "#002664",
+              "2" = c("#e36c33", "#002664"),
+              "3" = c('#002664', '#CFD6E3', '#e36c33'),
+              "4" = c("#002664", "#CFD6E3", "#f6d2c1", "#e36c33"),
+              "5" = c("#002664", "#4C6792", "#CFD6E3", "#edad88", "#e36c33"),
+              "6" = c("#002664", "#4C6792", "#CFD6E3", "#f6d2c1", "#edad88", "#e36c33"),
+              "conf_colors" = c('#002664', "#4C6792"))
+
+alpha_global <- 1
+
+# * (1) Kriminalitäts- und Extremismusfurcht =================================
+
+### ** Allgemeine Kriminalitätsfurcht ############################# 
+
+Figures <- pmap(list(var = exprs(q52, q44_a2, q43, q47_m1, q47_m2),
+                     categories = list(c("Abitur bzw. Erweiterte Oberschule mit Abschluss 12. Klasse (Hochschulreife)", 
+                                         "Fachhochschulreife",
+                                         "Mittlere Reife, Realschulabschluss, Polytechnische Oberschule mit Abschluss 10. Klasse", 
+                                         "Volks-/Hauptschulabschluss, Polytechnische Oberschule mit Abschluss 8./9. Klasse", 
+                                         "Schule ohne Abschluss verlasssen",
+                                         "Noch Schüler/in"),
+                                       rev(c("unter 18-jährige",
+                                             "18- bis 24-Jährige",
+                                             "25- bis 29-Jährige",
+                                             "30- bis 39-Jährige",
+                                             "40- bis 49-Jährige",
+                                             "50- bis 64-Jährige",
+                                             "65- bis 79-Jährige", 
+                                             "über 79-Jährige")),
+                                       c("Weiblich", "Männlich", "Divers"),
+                                       c("ohne Migrationshintergrund", "mit Migrationshintergrund"),
+                                       c("ohne Migrationshintergrund", "mit Migrationshintergrund")),
+                     na_sets = rep(list(-99:-88), 5),
+                     title = c("Sicherheitsgefühl allgemein nach Bildung",
+                               "Sicherheitsgefühl allgemein nach Alter",
+                               "Sicherheitsgefühl allgemein nach Geschlecht",
+                               "Sicherheitsgefühl allgemein nach Migrationshintergrund (bis 1. Generation)",
+                               "Sicherheitsgefühl allgemein nach Migrationshintergrund (bis 2. Generation)")),
+                function(var, categories, na_sets, title) {
+                  
+                  update_geom_defaults("rect",list(alpha = alpha_global))
+                  
+                  labels <- c("völlig unsicher", "sehr unsicher", "eher unsicher", "eher sicher", "sehr sicher", "völlig sicher")
+                  
+                  missing_labels <- c("keine Angabe", "fälschliche Mehrfachauswahl", "weiß nicht",
+                                      "explizite Antwortverweigerung", "trifft nicht zu", "nicht lesbar")
+                  
+                  data <- skisax %>%
+                    select(q2a, {{var}}, weight) %>%
+                    set_na(., na = na_sets) %>%
+                    mutate({{var}} := sjlabelled::as_label({{var}})) %>% 
+                    pivot_wider(names_from = {{var}}, values_from = q2a) %>% 
+                    select(categories, weight)
+                  
+                  data_export <- 
+                    skisax_weighted %>% 
+                    mutate(across(c({{var}}, q2a), ~sjlabelled::as_label(.))) %>%  
+                    group_by({{var}}, q2a) %>% 
+                    summarise(prop = survey_mean(vartype = "ci"),
+                              n = survey_total()) %>% 
+                    filter(!({{var}} %in% missing_labels) & !(q2a %in% missing_labels)) %>% 
+                    mutate(across(starts_with("prop"), ~(. * 100)),
+                           across(c(starts_with("prop"), n_se), ~round(., 1)),
+                           n = round(n, 0)) %>% 
+                    na.omit()
+                  
+                  g <- map(.x = names(select(data, -weight)),
+                           function(x) {
+                             
+                             data <- select(data, x, weight) %>% unnest
+                             
+                               sjPlot::plot_likert(items = select(data, x), 
+                                                   axis.labels = x, 
+                                                   weight.by = data[["weight"]],
+                                                   show.prc.sign = TRUE,
+                                                   geom.size = 0.011,
+                                                   digits = 0,
+                                                   values = "sum.outside",
+                                                   geom.colors = rev(color$`6`)) +
+                               theme_minimal() +
+                               theme(text = element_text(family = Analysis$font, colour = "black"),
+                                     legend.position = "none",
+                                     plot.title.position = "plot",
+                                     plot.caption = element_markdown(size = 15),
+                                     plot.margin = margin(0, 30, 0, 0),
+                                     plot.subtitle = element_markdown(size = 16), 
+                                     panel.grid.minor.y = element_blank(),
+                                     plot.title = element_text(size = 18, face = "bold"),
+                                     strip.text = element_text(size = 18, face = "bold", margin = margin(0, 0, 20, 0)),
+                                     axis.text.y = element_text(size = 14, colour = "black"),
+                                     axis.text.x = element_blank(),
+                                     axis.line.x.bottom = element_blank(),
+                                     axis.ticks.x.bottom = element_blank())
+                             
+                             }) %>% 
+                    patchwork::wrap_plots(ncol = 1, nrow = ncol(data) - 1) + 
+                    plot_annotation(title = NULL, 
+                                    subtitle = NULL, #"Wie sicher fühlen Sie sich oder würden Sie sich fühlen, wenn Sie nach Einbruch der Dunkelheit alleine zu Fuß in Ihrer Wohngegend\nunterwegs sind oder wären?"
+                                    caption = glue::glue("<span style='color:{color$`6`}'>{labels}</span>") %>% glue::glue_collapse(sep = "   <span style='color:grey80'>|</span>   "),
+                                    theme = theme(plot.title = element_text(size = 18, face = "bold"),
+                                                  plot.subtitle = element_text(size = 14),
+                                                  plot.caption = element_markdown(face = "plain", size = 12)))
+                  
+                  g[[ncol(data) - 1]] <- g[[ncol(data) - 1]] + 
+                    theme(axis.text.x = element_text(size = 14, colour = "black")) + 
+                    theme(axis.line.x.bottom = element_line(color = "gray25"),
+                          axis.ticks.x.bottom = element_line(color = "gray25")) +
+                    coord_capped_flip(bottom = "both") 
+                  
+                  list(Figure = g, Data = data_export)
+                  
+                }) %>% 
+  setNames(c("Sicherheitsgefühl_Bildung", "Sicherheitsgefühl_Alter", "Sicherheitsgefühl_Geschlecht", 
+             "Sicherheitsgefühl_erste_Migration", "Sicherheitsgefühl_zweite_Migration")) %>% 
+  append(Figures, values = .)
+
+
+### ** soziale und deliktspezifische Kriminalitätsfurcht ############################# 
+
+Figures <- pmap(list(vars = list(paste0("q10", letters[c(12, 3, 8, 13, 1, 6, 7)]),
+                                 paste0("q10", letters[c(2, 4)]),
+                                 paste0("q10", letters[c(10, 11)]),
+                                 paste0("q10", letters[1:13]), 
+                                 paste0("q11", letters[1:13]),
+                                 paste0("q12", letters[1:9]),
+                                 "q7"), 
+                     string_remove = c("Furcht: ", "Furcht: ", "Furcht: ", "Furcht: ",
+                                       "Risikoeinschätzung: ", "Vermeidungsverhalten:", "Perzeption der Kriminalitätsentwicklung allgemein"),
+                     text_labels = list(c("nie", "selten", "manchmal", "oft", "sehr oft"),
+                                        c("nie", "selten", "manchmal", "oft", "sehr oft"),
+                                        c("nie", "selten", "manchmal", "oft", "sehr oft"),
+                                        c("nie", "selten", "manchmal", "oft", "sehr oft"),
+                                        c("sehr unwahrscheinlich", "eher unwahrscheinlich", "weder noch", "eher wahrscheinlich", "sehr wahrscheinlich"),
+                                        c("nie", "selten", "manchmal", "oft", "sehr oft"),
+                                        c("hat stark abgenommen", "hat eher abgenommen", "ist in etwa gleichgeblieben",
+                                          "hat eher zugenommen", "hat stark zugenommen")), 
+                     rec = c(rep("1=5;2=4;4=2;5=1;else=copy", 6), "else=copy"),
+                     title = list("Kriminalitätsfurcht", "Kriminalitätsfurcht", "Kriminalitätsfurcht", "Kriminalitätsfurcht",
+                                  "Viktimsierungsrisiko", "Vermeidungsverhalten", "Perzeption der Kriminalitätsentwicklung in Sachsen"),
+                     subtitle = list("Wie oft fürchten Sie sich davor ...",
+                                     "Wie oft fürchten Sie sich davor ...",
+                                     "Wie oft fürchten Sie sich davor ...",
+                                     "Wie oft fürchten Sie sich davor ...",
+                                     "Für wie wahrscheinlich halten Sie es, in den nächsten 12 Monaten ...",
+                                     "Um mich vor Kriminalität zu schützen ...",
+                                     "Die Kriminalität in Sachsen [in den letzten 12 Monaten] insgesamt ...")),
+                
+                function(vars, string_remove, text_labels, rec, title, subtitle) {
+                  
+                  color <- color$`5`
+                  
+                  axis_labels <- skisax %>% select(vars) %>% get_label() %>% str_remove(string_remove)
+                  names(axis_labels) <- vars
+                  
+                  g <- skisax %>%
+                    select(vars, weight) %>% 
+                    set_na(., na = c(-99,-97,-96,-89,-88)) %>%
+                    rec(., rec = rec, append = FALSE, suffix = "") %>% 
+                    sips_likert(data = .,
+                                vars = vars,
+                                likert_colors = rev(color),
+                                axis_labels = axis_labels, 
+                                include_missingbar = FALSE,
+                                axis_text_y_size = 13,
+                                legend_position = "none",
+                                weight = weight,
+                                alpha_bar = alpha_global,
+                                nudge_y = 0.05,
+                                title = title,
+                                subtitle =  subtitle,
+                                subtitle_size = 16,
+                                guide = guide_legend(reverse = TRUE, nrow = 1, ncol = 6, override.aes = list(alpha = 0.3))) +
+                    labs(caption = glue::glue("<span style='color:{color}'>{text_labels}</span>") %>% 
+                           glue::glue_collapse(sep = "   <span style='color:grey80'>|</span>   "))
+                  
+                  vars_expr <- parse_exprs(vars)
+                  
+                  data_export <- map_dfr(.x = vars_expr,
+                                         ~skisax_weighted %>% 
+                                           srvyr_get_proptable(.x)) 
+                  
+                  list(Figure = g, Data = data_export)
+                  
+                }) %>% 
+  setNames(c("Kriminalitätsfurcht_Gewalt", "Kriminalitätsfurcht_Diebstahl", "Kriminalitätsfurcht_Internet",
+             "Kriminalitätsfurcht", "Viktimsierungsrisiko", "Vermeidungsverhalten", "Kriminalitätsentwicklung_generell")) %>% 
+  append(Figures, values = .)
+
+
+Figures <-
+  pmap(list(var = exprs(q2a, q2b, q8, q38a, q38b),
+            label = list(c("völlig unsicher", "sehr unsicher", "eher unsicher", "eher sicher", "sehr sicher", "völlig sicher"),
+                         c("völlig unsicher", "sehr unsicher", "eher unsicher", "eher sicher", "sehr sicher", "völlig sicher"),
+                         c("keine Sorgen", "geringe Sorgen", "eher geringe Sorgen", "eher große Sorgen", "große Sorgen", "sehr große Sorgen"),
+                         c("gar nicht verbreitet",  "wenig verbreitet", "eher verbreitet", "sehr verbreitet"),
+                         c("gar nicht verbreitet",  "wenig verbreitet", "eher verbreitet", "sehr verbreitet")),
+            title = list("Sicherheitsgefühl bei Dunkelheit", "Sicherheitsgefühl bei Tag", "Sorge vor Kriminalitätsentwicklung in Sachsen", NULL, NULL),
+            subtitle = c("Wie sicher fühlen Sie sich oder würden Sie sich fühlen, wenn Sie nach Einbruch der Dunkelheit alleine zu Fuß in Ihrer<br>Wohngegend unterwegs sind oder wären?",
+                         "Wie sicher fühlen Sie sich oder würden Sie sich fühlen, wenn Sie tagsüber alleine zu Fuß in Ihrer Wohngegend<br>unterwegs sind oder wären?",
+                         "Die Entwicklung in Sachsen bereitet mir ...",
+                         "Ist Korruption unter Politikern in der deutschen Bundespolitik ...",
+                         "Ist Korruption unter Politikern in der sächsischen Landespolitik ..."),
+            colors = list(color$`6`, color$`6`, color$`6`, color$`4`, color$`4`)),
+       function(var, label, title, subtitle, colors) {
+         
+         g <- skisax %>% 
+           select({var}) %>% 
+           set_na(na = -99:-88) %>% 
+           sjPlot::plot_likert(items = ., 
+                               show.prc.sign = TRUE, 
+                               geom.size = 0.011,
+                               show.n = FALSE, 
+                               weight.by = skisax$weight,
+                               values = "sum.outside",
+                               digits = 0,
+                               geom.colors = rev(colors)) +
+           theme_minimal() +
+           theme(text = element_text(family = Analysis$font, colour = "black"),
+                 legend.position = "none",
+                 plot.title.position = "plot",
+                 plot.caption = element_markdown(face = "plain", size = 12),
+                 plot.margin = margin(0, 30, 0, 0),
+                 plot.subtitle = element_markdown(size = 16), 
+                 panel.grid.minor.y = element_blank(),
+                 plot.title = element_text(size = 18, face = "bold"),
+                 strip.text = element_text(size = 18, face = "bold", margin = margin(0,0,20,0)),
+                 axis.text.y = element_blank(),
+                 axis.text.x = element_text(size = 14, colour = "black"),
+                 axis.line.x.bottom = element_line(color = "gray25"),
+                 axis.ticks.x.bottom = element_line(color = "gray25")) + 
+           coord_capped_flip(bottom = "both") +
+           labs(title = title,
+                subtitle = subtitle,
+                caption = glue::glue('<span style="color:{colors}">{label}</span>') %>% 
+                  glue::glue_collapse(sep = "   <span style='color:grey80'>|</span>   "))
+         
+         data_export <- srvyr_get_proptable(data = skisax_weighted, var = var)
+         
+         list(Figure = g, Data = data_export)
+         
+     }) %>% 
+  setNames(c("Sicherheitsgefühl_nacht", "Sicherheitsgefühl_tag", "Kriminalitätsentwicklung_sorge", "Korruption_Bund", "Korruption_Sachsen")) %>% 
+  append(Figures, values = .)
+
+map2(.x = paste0("q11", letters[1:13]),
+     .y = get_label(skisax[paste0("q10", letters[1:13])]),
+     function(x, y) {
+       
+       x_sym <- sym(x)
+       
+       sips_likert_(data = skisax_weighted, 
+             vars = {{x_sym}}, 
+             group = q47_m2, 
+             reverse_coding = FALSE, 
+             bar_color_manual = color$`5`, 
+             na_drop = TRUE, 
+             na_values = -88:-99, 
+             na_group = -88:-99, 
+             polartext_black = TRUE,
+             title = y)
+       
+       })
+
+### ** Entwicklung spezifischer Delikte ############################# 
+
+Figures <- 
+  map(.x = exprs(q9a:q9q, c(q9l, q9j, q9c, q9g, q9h, q9m, q9d), q9a:q9b, q9k:q9l, q9n, q9o, q9p:q9q),
+      function(x) {
+        
+        update_geom_defaults(geom = "text", new = list(color = "white"))
+        
+        select(skisax, {{x}}) %>%
+          set_na(na = -88:-99) %>% 
+          rec(rec = "rev", append = FALSE, suffix = "") %>% 
+          sjPlot::plot_stackfrq(items = .,
+                                title = "Wahrgenommene Entwicklung spezifischer Delikte",
+                                axis.labels = skisax %>% select({{x}}) %>% get_label() %>% str_remove("Zunahme: "),
+                                sort.frq = "last.desc",
+                                weight.by =  skisax$weight,
+                                show.total = FALSE,
+                                show.n = FALSE,
+                                digits = 0,
+                                geom.colors = color$`3`) +
+          theme_minimal() +
+          coord_capped_flip(bottom = "both") +
+          theme(text = element_text(family = Analysis$font, colour = "black"),
+                legend.position = "none",
+                plot.title.position = "plot",
+                plot.caption = element_markdown(size = 15),
+                plot.margin = margin(0, 30, 0, 0),
+                plot.subtitle = element_markdown(size = 16), 
+                panel.grid.minor.y = element_blank(),
+                plot.title = element_text(size = 18, face = "bold"),
+                strip.text = element_text(size = 18, face = "bold", margin = margin(0,0,20,0)),
+                axis.text = element_text(size = 14, colour = "black"),
+                axis.line.x.bottom = element_line(color = "gray25"),
+                axis.ticks.x.bottom = element_line(color = "gray25")) +
+          labs(title = "Wahrgenommene Entwicklung spezifischer Delikte", 
+               subtitle = 'Wie haben sich die folgenden Straftaten Ihrer Meinung nach in den letzten 12 Monaten in Sachsen entwickelt?', 
+               caption = glue::glue_collapse(glue::glue("<span style='color:{color$`3`}'>{c('Abnahme', 'In etwa gleich geblieben', 'Zunahme')}</span>"),
+                                             sep = "   <span style='color:grey80'>|</span>   "))}
+      
+  ) %>% 
+  setNames(c("Kriminalitätsentwicklung_spezifisch", 
+             "Kriminalitätsentwicklung_spezifisch_gewalt",
+             "Kriminalitätsentwicklung_spezifisch_diebstahl",
+             "Kriminalitätsentwicklung_spezifisch_internet",
+             "Kriminalitätsentwicklung_spezifisch_drogen",
+             "Kriminalitätsentwicklung_spezifisch_grenze",
+             "Kriminalitätsentwicklung_spezifisch_politiker")) %>% 
+  append(Figures, values = .)
+
+Figures$Kriminalitätsentwicklung_spezifisch$Data <- 
+  map_dfr(.x = parse_exprs(paste0("q9", letters[1:17])),
+        ~srvyr_get_proptable(skisax_weighted, .x))
+
+Figures$Entwicklung_PMK$Figure <- 
+  map2(.x = list(paste0("q15", letters[1:3]),
+                 paste0("q16", letters[1:3])),
+       .y = c("Die politisch motivierte Kriminalität in <strong>Deutschland</strong> im Bereich des ...", 
+              "Die politisch motivierte Kriminalität in <strong>Sachsen</strong> im Bereich des ..."),
+       function(x, y) {
+       
+       labels <- c("Rechtsextremismus", "Linksextremismus", "islamischen Extremismus")
+       names(labels) <- x
+       
+       skisax %>%
+         select(x, weight) %>% 
+         set_na(., na = c(-99,-97,-96,-89,-88)) %>%
+         sips_likert(data = .,
+                     vars = x,
+                     likert_colors = c("grey30", rev(color$`5`)),
+                     axis_labels = labels, 
+                     weight = weight,
+                     include_missingbar = TRUE,
+                     axis_text_y_size = 13,
+                     legend_position = "none",
+                     nudge_y = 0.05,
+                     missing_nudge_y = -0.05,
+                     alpha_bar = alpha_global,
+                     alpha_missingbar = alpha_global,
+                     missingbar_text_color = "white",
+                     subtitle =  y,
+                     subtitle_size = 16,
+                     guide = guide_legend(reverse = TRUE, nrow = 1, ncol = 6, override.aes = list(alpha = 0.3)))
+       
+     }) %>%  
+  patchwork::wrap_plots(nrow = 2) + 
+  plot_annotation(title = NULL, #"Entwicklung politisch motivierter Kriminalität",
+                  caption = glue::glue('<span style="color:{c(color$`5`, "grey30")}">{c("hat stark abgenommen",
+                                       "hat eher abgenommen", "ist in etwa gleichgeblieben",
+                                       "hat eher zugenommen", "hat stark zugenommen", 
+                                       "Das kann ich nicht beurteilen.")}</span>') %>% 
+                    glue::glue_collapse(sep = "   <span style='color:grey80'>|</span>   "),
+                  theme = theme(text = element_text(family = Analysis$font),
+                                plot.title = element_text(size = 18, face = "bold"),
+                                plot.caption = element_markdown(face = "plain", size = 11)))
+
+Figures$Entwicklung_PMK$Data <- 
+  map_dfr(.x = parse_exprs(c(paste0("q15", letters[1:3]),paste0("q16", letters[1:3]))),
+          ~srvyr_get_proptable(skisax_weighted, .x))
+
+
+### ** Sorge vor Entwicklung der PMK ############################# 
+
+Figures <-
+  pmap(list(var = list(exprs(q17a, q17b, q17c), exprs(q18a, q18b, q18c)),
+            label = list(c("keine Sorgen", "geringe Sorgen", "eher geringe Sorgen", "eher große Sorgen", "große Sorgen", "sehr große Sorgen"),
+                         c("keine Sorgen", "geringe Sorgen", "eher geringe Sorgen", "eher große Sorgen", "große Sorgen", "sehr große Sorgen")),
+            subtitle = c("Die Entwicklung politisch motivierter Kriminalität in <strong>Deutschland</strong> bereitet mir im Bereich des ...",
+                         "Die Entwicklung politisch motivierter Kriminalität in <strong>Sachsen</strong> bereitet mir im Bereich des ...")),
+       function(var, label, subtitle) {
+         
+         labels <- c("Rechtsextremismus", "Linksextremismus", "islamischen Extremismus")
+         
+         data <- skisax %>%
+           select(!!!var) %>%
+           set_na(., na = -99:-88) %>%
+           mutate(across(c(!!!var), ~sjlabelled::as_label(.)))
+         
+         g <- map2(.x = names(data),
+                   .y = labels,
+                  ~select(data, .x) %>%
+                    unnest(cols = c()) %>% 
+                    sjPlot::plot_likert(items = .,
+                                        axis.labels = .y,
+                                        show.prc.sign = TRUE, geom.size = 0.011,
+                                        digits = 0,
+                                        show.n = FALSE,
+                                        weight.by = skisax$weight,
+                                        values = "sum.outside",
+                                        geom.colors = rev(color$`6`)) +
+                    theme_minimal() +
+                    theme(text = element_text(family = Analysis$font, colour = "black"),
+                          legend.position = "none",
+                          plot.title.position = "plot",
+                          panel.grid.minor.y = element_blank(),
+                          plot.margin = margin(0, 30, 0, 0),
+                          plot.title = element_text(size = 18, face = "bold"),
+                          strip.text = element_text(size = 18, face = "bold", margin = margin(0, 0, 20, 0)),
+                          axis.text.y = element_text(size = 14, colour = "black"),
+                          axis.text.x = element_blank(),
+                          axis.line.x.bottom = element_blank(),
+                          axis.ticks.x.bottom = element_blank())) %>%
+           patchwork::wrap_plots(ncol = 1, nrow = ncol(data)) +
+           plot_annotation(title =  NULL, #"Sorge vor politisch motivierter Kriminalitätsentwicklung",
+                           subtitle = NULL, #subtitle,
+                           caption = glue::glue('<span style="color:{color$`6`}">{label}</span>') %>%
+                             glue::glue_collapse(sep = "   <span style='color:grey80'>|</span>   "),
+                           theme = theme(plot.title = element_text(size = 18, face = "bold"),
+                                         plot.subtitle = element_markdown(size = 16),
+                                         plot.caption = element_markdown(face = "plain", size = 12)))
+
+         g[[ncol(data)]] <- g[[ncol(data)]] +
+           theme(axis.text.x = element_text(size = 14, colour = "black")) +
+           theme(axis.line.x.bottom = element_line(color = "gray25"),
+                 axis.ticks.x.bottom = element_line(color = "gray25")) +
+           coord_capped_flip(bottom = "both")
+         
+         data_export <- map_dfr(.x = var,
+                                ~skisax_weighted %>% 
+                                  srvyr_get_proptable(.x)) 
+         
+         list(Figure = g, Data = data_export)
+
+        }) %>% 
+  setNames(c("Sorge_PMK_Deutschland", "Sorge_PMK_Sachsen")) %>% 
+  append(Figures, values = .)
+  
+
+### ** Extremismusfurcht ############################# 
+
+labels <-  c("ist sehr gering", "ist eher gering", "ist mittelmäßig",
+             "ist hoch", "ist sehr hoch", "Das kann ich nicht beurteilen.")
+
+Figures$Extremismusbedrohung$Figure <- 
+  map2(.x = list(paste0("q13", letters[1:3])),
+       .y = c("Die Bedrohung der demokratischen Ordnung in Deutschland durch den ..."),
+       function(x, y) {
+         
+         labels <- c("Rechtsextremismus", "Linksextremismus", "islamischen Extremismus")
+         names(labels) <- x
+         
+         skisax %>%
+           select(x, weight) %>% 
+           set_na(., na = c(-99,-97,-96,-89,-88)) %>%
+           rec(., rec = "1=5;2=4;4=2;5=1;else=copy", append = FALSE, suffix = "") %>% 
+           sips_likert(data = .,
+                       vars = x,
+                       likert_colors = rev(c(color$`5`, "grey30")),
+                       axis_labels = labels, 
+                       weight = weight,
+                       include_missingbar = TRUE,
+                       alpha_bar = alpha_global,
+                       alpha_missingbar = alpha_global,
+                       missingbar_text_color = "white",
+                       axis_text_y_size = 13,
+                       legend_position = "none",
+                       nudge_y = 0.05,
+                       missing_nudge_y = -0.05,
+                       subtitle = y,
+                       subtitle_size = 16,
+                       guide = guide_legend(reverse = TRUE, nrow = 1, ncol = 6, override.aes = list(alpha = 0.3)))
+       
+     }) %>%  patchwork::wrap_plots(nrow = 1) + 
+  plot_annotation(title = NULL, #"Wahrnehmung extremistischer Bedrohung", 
+                  caption = glue::glue("<span style='color:{c(color$`5`, 'grey30')}'>{labels}</span>") %>% glue::glue_collapse(sep = "   <span style='color:grey80'>|</span>   "),
+                  theme = theme(plot.title = element_text(size = 20, face = "bold"),
+                                plot.caption = element_markdown(face = "plain", size = 14)))
+
+Figures$Extremismusbedrohung$Data <- 
+  map_dfr(.x = parse_exprs(paste0("q13", letters[1:3])),
+          ~srvyr_get_proptable(skisax_weighted, .x))
+
+
+# * (2) Ergebnisse Dunkelfeldstudie - Opfererfahrung und vermutete Motivation =================================
+
+### ** Vermutete Motivation ############################# 
+
+Figures <- map2(.x = exprs(q20_1c == 1 | q20_1e == 1 | q20_1n == 1 | q20_1a == 1 | q20_1b == 1 | q20_1f == 1 | q20_1h == 1 | q20_1i == 1 |  q20_1o == 1,
+                           q20_1c == 1 | q20_1e == 1 | q20_1n == 1,
+                           q20_1a == 1 | q20_1b == 1 | q20_1f == 1 | q20_1h == 1 | q20_1i == 1,
+                           q20_1o == 1),
+                .y = c("... sexuelle Belästigung (offline und online), Stalking, Bedrohung, Beleidigung (beides offline und online), Körperverletzung und Eigentumszerstörung",
+                       "... sexuelle Belästigung (offline und online) und Stalking",
+                       "... Bedrohung, Beleidigung (beides offline und online) und Körperverletzung",
+                       "... Eigentumszerstörung"),
+                function(x, y){
+                  
+                  vars <- parse_exprs(paste0("q22", letters[c(1:9, 11:14)]))
+                  
+                  data  <-  skisax %>%
+                    filter(!!x) %>% 
+                    select(!!!vars, weight) %>% 
+                    set_na(., na = c(-97,-96,-89,-88)) 
+                  
+                  g <- data %>% 
+                    frq(x = ., show.na = FALSE, weights = data$weight) %>% 
+                    as.data.frame() %>%
+                    group_by(variable) %>% 
+                    mutate(n = sum(frq),
+                           prop = frq/n * 100,
+                           variable = str_wrap(str_remove_all(variable, pattern = "Vermutete Motivation: | \\s*\\([^\\)]+\\)"), 40),
+                           label = paste0(frq, " (", gsub(pattern = "\\.", ",", sprintf(fmt = "%.1f", prop)), "%)")) %>% 
+                    filter(val == 1) %>%
+                    sips_lollipop(data = ., 
+                                  x = frq, 
+                                  y = reorder(variable, prop), 
+                                  label = label,
+                                  point_color = color$`1`,
+                                  alpha = alpha_global,
+                                  title = "Vermutete Motivation bei Opferwerdung durch ...", 
+                                  subtitle = y)
+                  
+                  data_export <- map_dfr(.x = vars,
+                                         ~skisax_weighted %>% 
+                                           filter(!!x) %>% 
+                                           srvyr_get_proptable(var = .x, remove_missings = FALSE))
+                  
+                  list(Figure = g, Data = data_export)
+                    
+                  
+                }) %>% 
+  setNames(c("Vermutete_Motivation",
+             "Vermutete_Motivation_sexuelle_Belästigung", 
+             "Vermutete_Motivation_Bedrohung", 
+             "Vermutete_Motivation_Eigentumszerstörung")) %>% 
+  append(x = Figures, values = .)
+
+Figures$`055_Vermutete_Motivation_Eigentumszerstörung`$Figure + 
+  scale_x_continuous(limits = c(0, 100))
+
+### ** Prävalenzen und Diskriminierung #############################
+
+Figures <- 
+  pmap(list(vars = exprs(c(q20_1a:q20_1d, q20_1f:q20_1p, q20_1r:q20_1u), 
+                         c(q20_1a:q20_1d, q20_1f:q20_1p, q20_1r:q20_1u),
+                         c(q20_1a:q20_1d, q20_1f:q20_1p, q20_1r:q20_1u), 
+                         c(q20_1a:q20_1d, q20_1h:q20_1j), 
+                         c(q20_1k:q20_1m), 
+                         c(q20_1f:q20_1h), 
+                         c(q19a:q19i, q19k:q19m), 
+                         c(q19a:q19i, q19k:q19m),
+                         c(q19a:q19i, q19k:q19m)), 
+            values = list(1, 
+                          2, 
+                          c(1, 2, 3, -89, -99), 
+                          c(1, 2, 3, -89, -99), 
+                          c(1, 2, 3, -89, -99), 
+                          c(1, 2, 3, -89, -99),
+                          1, 
+                          2, 
+                          c(1, 2, 3, -89, -99)),
+            str_remove = list("Opfererfahrung: ", 
+                              "Opfererfahrung: ", 
+                              "Opfererfahrung: ", 
+                              "Opfererfahrung: ",
+                              "Opfererfahrung: ",
+                              "Opfererfahrung: ",
+                              "Diskriminierung: ",
+                              "Diskriminierung: ", 
+                              "Diskriminierung: "), 
+            suffix = list("(Männer)", "(Frauen)", "(alle Befragten)", "(alle Befragten)", "(alle Befragten)", "(alle Befragten)", "(Männer)", "(Frauen)", "(alle Befragten)"),
+            title = c("12-Monats-Prävalenz berichteter Straftaten",
+                      "12-Monats-Prävalenz berichteter Straftaten",
+                      "12-Monats-Prävalenz berichteter Straftaten",
+                      "12-Monats-Prävalenz berichteter Straftaten",
+                      "12-Monats-Prävalenz berichteter Straftaten",
+                      "12-Monats-Prävalenz berichteter Straftaten",
+                      "Diskriminierungserfahrung in den letzten 12 Monaten",
+                      "Diskriminierungserfahrung in den letzten 12 Monaten",
+                      "Diskriminierungserfahrung in den letzten 12 Monaten"),
+            limits = list(c(0, 10), c(0, 10), c(0, 10),  c(0, 5), c(0, 10), c(0, 10), c(0, 15), c(0, 10), c(0, 10)),
+            text_axis_size = c(11, 11, 11, 11, 11, 11, 12, 12, 12),
+            nudge_x = c(0.05, 0.05, 0.05, 0.075, 0.05, 0.05, 0.035, 0.035, 0.035)),
+       function(vars, values, str_remove, suffix, title, limits, text_axis_size, nudge_x) {
+         
+         g <- skisax_weighted %>% 
+           filter(q43 %in% values) %>% 
+           srvyr_aggregation({{vars}}, na_values = NULL) %>% 
+           filter(value == 1) %>% 
+           mutate(across(proportion:proportion_upp, ~(. * 100)),
+                  label = paste0(str_wrap(str_remove(label, str_remove), 45), "\n(n = ", round(n, 0), ")")) %>%
+           sips_bar(data = .,
+                    y = reorder(label, proportion),
+                    x = proportion,
+                    xmin = proportion_low,
+                    bar_color = color$`1`,
+                    conf_color = "grey50",
+                    alpha = alpha_global,
+                    xmax = proportion_upp,
+                    nudge_x = nudge_x,
+                    label = prozent(proportion, dec = 1),
+                    title = paste(title, suffix),
+                    limits = limits,
+                    axis_text_size = text_axis_size,
+                    subtitle = "Opferangaben in Prozent",
+                    xlab = NULL)
+
+         vars_list <- parse_exprs(names(select(skisax, {{vars}})))
+
+         data_export <- map_dfr(.x = vars_list,
+                                ~skisax_weighted %>%
+                                  filter(q43 %in% values) %>%
+                                  srvyr_get_proptable(var = .x, remove_missings = FALSE))
+
+         list(Figure = g, Data = data_export)
+         
+       }) %>%
+  setNames(c("Prävalenzen_Männer", "Prävalenzen_Frauen", "Prävalenzen_Alle", "Prävalenzen_Gewalt_Alle",
+             "Prävalenzen_Diebstahl_Alle", "Prävalenzen_Internet_Alle", "Diskriminierung_Männer", 
+             "Diskriminierung_Frauen", "Diskriminierung_Alle")) %>% 
+  append(x = Figures, values = .)
+
+
+### ** Inzidenzen #############################
+
+Figures$Inzidenzen$Data <- 
+  skisax_weighted %>% 
+  srvyr_aggregation(paste0("q20_2", letters[c(1:4, 6:16, 18:21)]), 
+                    grouped = FALSE, 
+                    fun = survey_mean, percentile = .95) %>% 
+  mutate(across(survey_mean:survey_mean_upp, ~round(., 1))) %>% 
+  relocate(var:label, .before = survey_mean)
+
+Figures$Inzidenzen$Figure <- 
+  Figures$Inzidenzen$Data %>% 
+  mutate(label = str_remove(label, "Anzahl Straftaten: ")) %>% 
+  sips_bar(data = ., 
+           y = reorder(str_wrap(label, 35), survey_mean), 
+           x = survey_mean, 
+           xmin = survey_mean_low, 
+           xmax = survey_mean_upp, 
+           bar_color = color$`1`,
+           alpha = alpha_global,
+           label = round(survey_mean, 0), 
+           title = "12-Monats-Inzidenz berichteter Straftaten",
+           subtitle = "Mittlere Delikthäufigkeit je Opfer",
+           xlab = "Mittlere Delikthäufigkeit", 
+           x_labels = scales::label_number(accuracy = 1))
+
+Figures <- 
+  map(.x = exprs(q20_2a, q20_2b, q20_2c, q20_2f, q20_2h, q20_2n),
+       function(x) {
+         
+        g <- skisax_weighted %>%
+          mutate(q43 = as_labelled(q43)) %>% 
+          filter({{x}} > 0) %>% 
+          group_by(q43) %>% 
+          summarize(mean = survey_mean(x = {{x}}, vartype = "ci"),
+                    total = survey_total()) %>% 
+          filter(q43 %in% 1:2) %>%
+          mutate(q43 = factor(q43, levels = c(1, 2), 
+                              labels = paste0(c("Männlich\nn = ", "Weiblich\nn = "), round(total))),
+                 mean_low = if_else(mean_low < 0, 0, mean_low)) %>% 
+          sips_bar(data = .,
+                   y = q43,
+                   x = mean,
+                   xmin = mean_low,
+                   xmax = mean_upp,
+                   bar_color = color$`1`,
+                   alpha = alpha_global,
+                   width = 0.5,
+                   label = round(mean, 1),
+                   title = str_wrap(get_label(pull(skisax, {{x}})), 50),
+                   subtitle = "nach Geschlecht",
+                   flip = TRUE,
+                   x_labels = scales::number_format(accuracy = 1),
+                   xlab = "Anzahl der Straftaten")
+        
+        list(Figure = g, Data = NULL)
+         
+       }) %>%
+  setNames(c("Inzidenzen_Geschlecht_körperverl", 
+             "Inzidenzen_Geschlecht_körperverl_Waffe", 
+             "Inzidenzen_Geschlecht_sexuell_Bel",
+             "Inzidenzen_Geschlecht_soz_Med_beleidigt",
+             "Inzidenzen_Geschlecht_soz_Med_bedrohung",
+             "Inzidenzen_Geschlecht_Körperverl_stalking")) %>% 
+  append(Figures, values = .)
+
+Figures$Inzidenzen_Geschlecht <-
+  list(Figure = NULL,
+       Data = map_dfr(.x = c("Männlich" = 1, "Weiblich" = 2),
+                      ~skisax_weighted %>% 
+                        filter(q43 == .x) %>% 
+                        srvyr_aggregation(paste0("q20_2", letters[c(1:4, 6:16, 18:21)]), 
+                                          grouped = FALSE, 
+                                          fun = survey_mean, percentile = .95) %>% 
+                        mutate(across(survey_mean:survey_mean_upp, ~round(., 1))) %>% 
+                        relocate(var:label, .before = survey_mean), .id = "q43"))
+
+### ** Anzeigeverhalten #############################
+
+Figures$Anzeigequote$Data <- 
+  pmap(list(x = list(paste0("q20_2", letters[c(1:4, 6:16, 18:21)]), paste0("q20_3", letters[c(1:4, 6:16, 18:21)])),
+            y = exprs(inzidenz, anzeigen),
+            z = c("Anzahl Straftaten: ", "Anzahl Anzeigen: ")),
+       function(x, y, z) {
+         
+         srvyr_aggregation(data = skisax_weighted, fun = survey_total,
+                           vars = x, grouped = FALSE) %>% 
+           select(survey_total, label) %>% 
+           rename({{y}} := 1, delikt = label) %>% 
+           mutate(delikt = str_remove(delikt, z))
+       }) %>% 
+  reduce(left_join, by = "delikt") %>% 
+  mutate(anzeige_quote = round(anzeigen/inzidenz * 100, 1),
+         delikt = str_wrap(delikt, width = 30),
+         across(c(inzidenz, anzeigen), ~round(., 0))) %>% 
+  relocate(delikt, .before = inzidenz)
+
+Figures$Anzeigequote$Figure <- 
+  Figures$Anzeigequote$Data %>% 
+  select(delikt, anzeige_quote, inzidenz) %>% 
+  arrange(anzeige_quote) %>% 
+  mutate(`nicht angezeigt` = 100-anzeige_quote,
+         inzidenz = round(inzidenz),
+         delikt = factor(delikt, levels = delikt, labels = paste0(str_wrap(delikt, 45), "\nn = ", inzidenz))) %>% 
+  rename(angezeigt = anzeige_quote) %>% 
+  pivot_longer(cols = -c(delikt, inzidenz), names_to = "var", values_to = "value") %>% 
+  mutate(label = paste0(sprintf(fmt = "%.0f", value), "%"),
+         label = if_else(value <= 1, NA_character_, label)) %>% 
+  sips_stackedbarplot(data = ., 
+                      y = value, 
+                      x = delikt,
+                      alpha = c(alpha_global, alpha_global),
+                      color = color$`2`, 
+                      fill = var,
+                      text_col = "white",
+                      label = label,
+                      axis_text_size = 12,
+                      legend_position = "none",
+                      title = "Anzeigequote", 
+                      subtitle = "bei Opferwerdung durch ...") +
+  labs(caption = glue::glue_collapse(glue::glue("<span style='color:{color$`2`}'>{c('angezeigt', 'nicht angezeigt')}</span>"),
+                                     sep = "   <span style='color:grey80'>|</span>   "))
+
+### ** Ort der berichteten Straftat #############################
+
+Figures$Anzeigeverhalten_ort$Data <- 
+  pmap_dfr(list(filter_values = list(c(1:4, 6:16, 18:21), c(1, 2, 4, 10), 11:13, 5:8),
+                delikt = c("alle Deliktformen", "Gewaltkriminalität", "Eigentumskriminalität", "Cybercrime")),
+           function(filter_values, delikt) {
+             
+             skisax_weighted %>% 
+               filter(q24 %in% filter_values) %>% 
+               srvyr_aggregation(data = ., vars = q25) %>% 
+               mutate(value = factor(value,
+                                     levels = 1:5,
+                                     labels = c("Zu Hause", "In meiner Nachbarschaft", "In meinem Wohnort",
+                                                "Außerhalb meines Wohnortes", "Im digitalen Raum\n(z.B. Facebook, Twitter, WhatsApp)")),
+                      across(proportion:proportion_upp, ~round(. * 100, 1)),
+                      label = delikt) %>% 
+               rename(delikt = label, category = value)
+             
+           }) %>% 
+  mutate(delikt = factor(delikt, levels = c("Cybercrime", "Gewaltkriminalität", "Eigentumskriminalität", "alle Deliktformen")),
+         n_se = round(n_se, 1),
+         n = round(n, 0),
+         label = paste0(sprintf(fmt = "%.0f", proportion), "%")) %>% 
+  relocate(var:delikt, .before = category)
+
+Figures$Anzeigeverhalten_ort$Figure <-  
+  sips_stackedbarplot(data = Figures$Anzeigeverhalten_ort$Data,
+                      x = delikt, 
+                      y = proportion, 
+                      fill = category, 
+                      alpha = rep(alpha_global, 5),
+                      color = color$`5`,
+                      label = label,
+                      label_size = 4,
+                      axis_text_size = 13,
+                      legend_position = "none",
+                      caption_size = 12,
+                      title = "Ort der berichteten Straftat", 
+                      subtitle = "Angaben differenziert nach allen und spezifischen Deliktformen") +
+  labs(caption = glue::glue_collapse(glue::glue('<span style="color:{color$`5`}">{c("Zu Hause", "In meiner Nachbarschaft", "In meinem Wohnort",
+                                              "Außerhalb meines Wohnortes", "Im digitalen Raum\n(z.B. Facebook, Twitter, WhatsApp)")}</span>'),
+                                     sep = "   <span style='color:grey80'>|</span>   "))
+
+
+### ** Gründe für das Nicht-Anzeigen der berichteten Straftat #############################
+
+Figures <-  
+  pmap(list(filter_values = list(c(1:4, 6:16, 18:21), c(1, 2, 4, 10), 11:13, 5:8),
+            delikt = c("alle Deliktformen", "Gewaltkriminalität", "Eigentumskriminalität", "Cybercrime")),
+       function(filter_values, delikt) {
+         
+         data_export <- 
+           skisax_weighted %>% 
+           filter(q24 %in% filter_values) %>% 
+           srvyr_aggregation(data = ., vars = paste0("q27", letters[seq_len(16)]), fun = survey_mean) %>%
+           mutate(value = sjlabelled::as_character(value),
+                  across(proportion:proportion_upp, ~round(. * 100, 1)),
+                  n = round(n, 0),
+                  n_se = round(n_se, 1),
+                  motiv = str_remove(label, "Grund Nicht-Anzeige: "),
+                  label = paste0(sprintf(fmt = "%.0f", proportion), "%")) %>%
+           rename(category = value) %>%
+           relocate(motiv, .before = category) %>%
+           relocate(var, .before = motiv)
+          
+         data_sort <- data_export %>%
+           filter(category == "nicht genannt") %>%
+           arrange(desc(proportion)) %>%
+           mutate(motiv = factor(motiv, levels = motiv))
+
+         g <-  data_export %>%
+           mutate(motiv = factor(motiv, 
+                                 levels = as.character(data_sort$motiv),
+                                 labels = paste0(str_wrap(data_sort$motiv, 45), 
+                                                 "\nn = ", round(data_sort$n))),
+                  label = ifelse(proportion < 2, "", label)) %>%
+           na.omit() %>%
+           sips_stackedbarplot(data = .,
+                               x = motiv,
+                               y = proportion,
+                               alpha = c(alpha_global, alpha_global),
+                               color = color$`2`,
+                               fill = category,
+                               text_col = "White",
+                               axis_text_size = 12,
+                               label = label,
+                               legend_position = "none",
+                               title = "Gründe für das Nichtanzeigen der berichteten Straftat",
+                               subtitle = delikt) +
+           labs(caption = glue::glue_collapse(glue::glue("<span style='color:{color$`2`}'>{c('genannt', 'nicht genannt')}</span>"),
+                                              sep = "   <span style='color:grey80'>|</span>   "))
+
+         list(Figure = g, Data = data_export)
+  
+       }) %>%
+  setNames(c("Nichtanzeige_alle_Delikte", "Nichtanzeige_Gewaltkriminalität",
+             "Nichtanzeige_Eigentumskriminalität", "Nichtanzeige_Cybercrime")) %>% 
+  append(x = Figures, values = .)
+
+
+# * (3) Vertrauen in und Zufriedenheit mit Institutionen =================================
+
+### ** Vertrauen #############################
+
+labels <-  c("vertraue ich überhaupt nicht", "vertraue ich eher nicht", 
+             "vertraue ich teilweise", "vertraue ich weitgehend", "vertraue ich voll und ganz",
+             "Kenne die Institution nicht.")
+
+Figures$Vertrauen_Institutionen_Sachsen$Figure <- 
+  map2(.x = list(paste0("q30b", letters[c(1, 4)])), #c(1, 4)
+       .y = c("Geben Sie bitte jeweils an, inwieweit Sie der jeweiligen Einrichtung bzw. Institution vertrauen."),
+       function(x, y) {
+         
+         labels <- skisax %>% 
+           select(paste0("q30b", letters[c(1, 4)])) %>% 
+           get_label() %>% str_remove("Sachsen: ") %>% 
+           str_replace("Polizei Sachsen", "Sächsische Polizei")
+         names(labels) <- x
+         
+         skisax %>%
+           select(x, weight) %>% 
+           set_na(., na = c(-99,-97,-96,-89,-88)) %>%
+           rec(., rec = "1=5;2=4;4=2;5=1;else=copy", append = FALSE, suffix = "") %>% 
+           sips_likert(data = .,
+                       vars = x,
+                       likert_colors = rev(c(color$`5`, "grey30")),
+                       axis_labels = labels, 
+                       include_missingbar = TRUE,
+                       axis_text_y_size = 13,
+                       alpha_bar = alpha_global,
+                       alpha_missingbar = alpha_global,
+                       legend_position = "none",
+                       nudge_y = 0.05, 
+                       weight = weight,
+                       subtitle =  y,
+                       subtitle_size = 16,
+                       guide = guide_legend(reverse = TRUE, nrow = 1, ncol = 6, override.aes = list(alpha = 0.3)))
+         
+       }) %>%  patchwork::wrap_plots(nrow = 1) + 
+  plot_annotation(title = NULL,#"Vertrauen in sächsische Institutionen", 
+                  caption = glue::glue("<span style='color:{c(color$`5`, 'grey30')}'>{labels}</span>") %>% 
+                    glue::glue_collapse(sep = "   <span style='color:grey80'>|</span>   "),
+                  theme = theme(plot.title = element_text(size = 20, face = "bold"),
+                                plot.caption = element_markdown(face = "plain", size = 11)))
+
+Figures$Vertrauen_Institutionen_Sachsen$Data <- 
+  map_dfr(.x = parse_exprs(paste0("q30b", letters[c(1, 4)])),
+          ~srvyr_get_proptable(skisax_weighted, .x))
+
+### ** Zufriedenheit #############################
+
+labels <-  c("sehr unzufrieden", "unzufrieden", "etwas unzufrieden", 
+             "etwas zufrieden", "zufrieden", "sehr zufrieden")
+
+update_geom_defaults("rect", list(alpha = alpha_global))
+update_geom_defaults(geom = "text", new = list(color = "white"))
+
+Figures$Zufriedenheit_Institutionen_Sachsen$Figure <- 
+  select(skisax, q31a, q31d) %>%
+  set_na(na = -88:-99) %>% 
+  sjPlot::plot_likert(items = .,
+                      title = "Zufriedenheit mit Institutionen",
+                      axis.labels = skisax %>% select(paste0("q31", letters[c(1, 4)])) %>% get_label() %>% str_remove("Zufriedenheit: "),
+                      sort.frq = "neg.asc", 
+                      weight.by = skisax$weight,
+                      catcount = 6,
+                      show.n = FALSE,
+                      show.prc.sign = TRUE,
+                      digits = 0,
+                      geom.colors = rev(color$`6`)) +
+  theme_minimal() +
+  coord_capped_flip(bottom = "both") +
+  theme(text = element_text(family = Analysis$font, colour = "black"),
+        legend.position = "none",
+        plot.title.position = "plot",
+        plot.caption = element_markdown(size = 15),
+        plot.margin = margin(0, 30, 0, 0),
+        plot.subtitle = element_markdown(size = 16), 
+        panel.grid.minor.y = element_blank(),
+        plot.title = element_text(size = 18, face = "bold"),
+        strip.text = element_text(size = 18, face = "bold", margin = margin(0,0,20,0)),
+        axis.text = element_text(size = 14, colour = "black"),
+        axis.line.x.bottom = element_line(color = "gray25"),
+        axis.ticks.x.bottom = element_line(color = "gray25")) +
+  labs(title = "Zufriedenheit mit Insitutionen", 
+       subtitle = 'Wie zufrieden sind Sie - alles in allem - mit der Arbeit der folgenden Institutionen?', 
+       caption = glue::glue_collapse(glue::glue("<span style='color:{color$`6`}'>{labels}</span>"),
+                                     sep = "   <span style='color:grey80'>|</span>   "))
+
+update_geom_defaults(geom = "text", new = list(color = "black"))
+
+Figures$Zufriedenheit_Institutionen_Sachsen$Data <- 
+  map_dfr(.x = parse_exprs(paste0("q31", letters[c(1, 4)])),
+          ~srvyr_get_proptable(skisax_weighted, .x))
+
+### ** Mehrfachviktimisierung #############################
+
+skisax <- skisax %>%
+  rowwise() %>% 
+  mutate(n_q22 = sum(c_across(q22a:q22j) == 1),
+         n_q20 = sum(c_across(q20_1a:q20_1u) == 1), 
+         n_q19 = sum(c_across(c(q19a:q19j, q19k:q19m)) == 1)) %>%
+  ungroup() %>% 
+  mutate(n_q19 = case_when(n_q19 == 0 ~ 1,
+                           n_q19 == 1 ~ 2,
+                           n_q19 > 1 ~ 3),
+         n_q19 = set_labels(n_q19, labels = c("Keine Diskriminierung" = 1,
+                                              "Einfachdiskriminierung" = 2,
+                                              "Mehrfachdiskriminierung" = 3)),
+         n_q19 = set_label(n_q19, "Diskriminierung"),
+         n_q20 = case_when(n_q20 == 0 ~ 1,
+                           n_q20 == 1 ~ 2,
+                           n_q20 > 1 ~ 3),
+         n_q20 = set_labels(n_q20, labels = c("Keine Viktimisierung" = 1,
+                                              "Einfachviktimisierung" = 2,
+                                              "Mehrfachviktimisierung" = 3)),
+         n_q20 = set_label(n_q20, "Viktimisierung"),
+         n_q22 = case_when(n_q22 == 0 ~ 1,
+                           n_q22 == 1 ~ 2,
+                           n_q22 > 1 ~ 3),
+         n_q22 = set_labels(n_q22, labels = c("Keine Diskriminierung durch Hate Crime" = 1,
+                                              "Einfachdiskriminierung durch Hate Crime" = 2,
+                                              "Mehrfachdiskriminierung durch Hate Crime" = 3)),
+         n_q22 = set_label(n_q22, "Hate Crime")) 
+
+skisax_weighted <- srvyr::as_survey_design(.data = skisax, ids = 1, weights = weight)
+
+Figures$Mehrfachdiskriminierung$Data <- 
+  map_dfr(.x = exprs(n_q19, n_q20, n_q22),
+          ~srvyr_get_proptable(skisax_weighted, .x) %>% 
+            select(-var))
+
+
+# * (4) Interpolation und kartographische Darstellung =================================
+
+skisax_regional <- sjlabelled::read_stata("Daten/01_Befragungsdaten/infas_Regionaldatensatz_7529SKiSAX_20221116.dta",
+                                          convert.factors = FALSE) %>% 
+  sjlabelled::set_na(q2a:q2b, q9o, q18a:q18c, na = -99:-88) %>% 
+  mutate(across(q2a, ~if_else(. >= 5, 1, 0, missing = NA_real_)),
+         q2b = if_else(q2b >= 4, 1, 0, missing = NA_real_),
+         across(q9o, ~if_else(. == 1, 1, 0, missing = NA_real_)),
+         across(q18a:q18c, ~if_else(. %in% c(1, 2), 1, 0, missing = NA_real_))) %>% 
+  group_by(Cluster) %>% 
+  summarise(n = n(),
+            across(c(q2a:q2b, q9o, q18a:q18c), ~round(mean(.x, na.rm = TRUE) * 100, 1))) %>% 
+  ungroup() %>% 
+  rename_with(tolower)
+
+Sachsen_grid <- data.table::fread("Daten/04_Raumdaten/Sachsen_Grid.csv") %>% 
+  as.matrix() %>% 
+  sp::SpatialPoints(coords = ., proj4string = sp::CRS("+proj=longlat +datum=WGS84 +no_defs"))
+
+Kreise <- geojsonsf::geojson_sf("Daten//04_Raumdaten/Kreise_Sachsen.geojson") %>% 
+  as_Spatial() %>%  
+  broom::tidy() %>% 
+  filter(!hole)
+
+Gemeindecluster <- geojsonsf::geojson_sf("Daten//04_Raumdaten/Gemeindecluster.geojson") %>% 
+  sf::st_point_on_surface(.) %>% 
+  left_join(skisax_regional) %>% 
+  filter(n > 10) %>% 
+  as_Spatial()
+
+### ** Kriging und speichern der Karten #############################
+
+Figures$Interpolation_Grenzkriminalität <-
+  sips_kriging(data = Gemeindecluster, 
+                  new_data = Sachsen_grid, 
+                  variogram_formula = "q9o ~ einwohnerdichte + q2a + q2b",
+                  krige_formula = "q9o ~ 1",
+                  return_variogram = FALSE,
+                  low = color$`1`,
+                  contour = TRUE,
+                  title = "Wahrnehmung von Grenzkriminalität in den letzten 12 Monaten",
+                  subtitle = "Anteil an Personen, die eine Zunahme wahrgenommen haben") +
+  geom_path(data = Kreise, aes(x = long, y = lat, group = group), color = "white")
+
+
+#  T A B E L L E N__S P E I C H E R N ----------------------------------------------------------------
+
+# * Daten extrahieren und Workbook vorbereiten =================================
+
+Tables <-
+  map(.x = Figures, ~.x$Data) %>% 
+  compact() %>% 
+  number_list() %>% 
+  set_names(map(.x = names(.), 
+                .f = ~str_trunc(.x, 30, side = "right")))
+
+wb <- createWorkbook()
+
+# * Daten in Workbook schreiben =================================
+
+walk2(.x = names(Tables), 
+      .y = Tables,
+      ~quos(addWorksheet(wb, {{.x}}), 
+            writeData(wb, {{.y}}, sheet = {{.x}}, headerStyle = createStyle(textDecoration = "Bold")),
+            setColWidths(wb, sheet = {{.x}}, cols = 1:ncol({{.y}}), widths = "auto")) %>%
+        walk(.x = ., ~eval_tidy({{.x}}, env = globalenv())))
+
+# * Workbook exportieren =================================
+
+saveWorkbook(wb, "Grafiken/02_Anlieferungen PSB/Tabellen.xlsx", overwrite = TRUE)
+
+
+#  G R A F I K E N__S P E I C H E R N ----------------------------------------------------------------
+
+Figures_export <- Figures[c("Kriminalitätsentwicklung_generell", "Sicherheitsgefühl_tag", "Sicherheitsgefühl_nacht",
+                            "Sicherheitsgefühl_Geschlecht", "Sicherheitsgefühl_Alter", "Sicherheitsgefühl_Bildung", 
+                            "Sicherheitsgefühl_zweite_Migration", "Viktimsierungsrisiko", "Vermeidungsverhalten", 
+                            "Vertrauen_Institutionen_Sachsen", "Zufriedenheit_Institutionen_Sachsen", "Kriminalitätsentwicklung_spezifisch",
+                            "Kriminalitätsfurcht", "Prävalenzen_Alle", "Anzeigequote", "Nichtanzeige_alle_Delikte", 
+                            "Kriminalitätsentwicklung_spezifisch_gewalt", "Kriminalitätsfurcht_Gewalt", "Prävalenzen_Gewalt_Alle", 
+                            "Nichtanzeige_Gewaltkriminalität", "Kriminalitätsentwicklung_spezifisch_diebstahl", "Kriminalitätsfurcht_Diebstahl", 
+                            "Prävalenzen_Diebstahl_Alle", "Nichtanzeige_Eigentumskriminalität", "Kriminalitätsentwicklung_spezifisch_internet",
+                            "Kriminalitätsfurcht_Internet", "Prävalenzen_Internet_Alle", "Nichtanzeige_Cybercrime", "Kriminalitätsentwicklung_spezifisch_drogen",
+                            "Kriminalitätsentwicklung_spezifisch_grenze", "Kriminalitätsentwicklung_spezifisch_politiker",
+                            "Interpolation_Grenzkriminalität", "Entwicklung_PMK", "Extremismusbedrohung", 
+                            "Sorge_PMK_Sachsen", "Diskriminierung_Alle", "Vermutete_Motivation",
+                            "Korruption_Bund", "Korruption_Sachsen")] %>% 
+  map(.x = ., function(x) if ( "Figure" %in% names(x)) x$Figure else x) %>%
+  as_tibble_col() %>% 
+  mutate(names = names(value)) %>% 
+  left_join(read_csv2("Grafiken/02_Anlieferungen PSB/Abmaße.csv")) %>% 
+  mutate(names = paste(lfd, names, sep = "_"))
+
+patchwork::wrap_elements(ggplot(mapping = aes(x = 0:1, y = 0.8)) +
+                                   theme_void() +
+                                   annotation_custom(logo, xmin = .72, xmax = 1.2, ymin = 0, ymax = 1.25)) /
+  wrap_elements(Figures_export$value$Entwicklung_PMK + labs(title = NULL, subtitle = NULL)) +
+  patchwork::plot_layout(ncol = 1)
+
+update_geom_defaults(geom = "text", new = list(color = "white"))
+
+pwalk(.l = list(plot = Figures_export$value,
+                name = Figures_export$names,
+                width = Figures_export$width,
+                height = Figures_export$height,
+                rel_height = Figures_export$rel_height),
+      function(plot, name, width, height, rel_height) {
+        
+        plot <- plot + labs(title = NULL, subtitle = NULL)
+        
+        plot <- patchwork::wrap_elements(ggplot(mapping = aes(x = 0:1, y = 0.8)) +
+                                           theme_void() +
+                                           annotation_custom(logo, xmin = .72, xmax = 1.2, ymin = 0, ymax = 1.25)) /
+          wrap_elements(plot) +
+          patchwork::plot_layout(ncol = 1, heights = c(rel_height, 1 - rel_height))
+        
+        
+        # ggsave(path = "Grafiken/02_Anlieferungen PSB/emf",
+        #        filename = paste0(name, ".emf"),
+        #        plot = plot,
+        #        device = {\(filename, ...) devEMF::emf(file = filename, ...)},
+        #        scale = 1,
+        #        width = width,
+        #        height = height,
+        #        limitsize = FALSE)
+        
+        ggsave(path = "Grafiken/02_Anlieferungen PSB/PNG",
+               filename = paste0(name, ".png"),
+               plot = plot,
+               device = png,
+               scale = 1,
+               width = width,
+               height = height,
+               limitsize = FALSE)
+        
+      })
+
+

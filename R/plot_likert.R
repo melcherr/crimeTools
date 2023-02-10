@@ -1,16 +1,41 @@
 #' Plot Likert Scales as Centered Stacked Bars
 #'
 #' Plots likert scales with even and odd number of categories as centered stacked bar charts with and without missing values.
-#' @param data Data frame
+#' @param data data frame or a weighted data frame of class 'tbl_svy'.
+#' @param vars variable names, must be a symbol or character vector.
+#' @param group (optional) only used if grouping variable is supplied.
+#' @param reverse_coding reverse coding of valid response categories.
+#' @param bar_color_manual (optional) user defined colors, must be a character vector of same length as the number of valid response categories.
+#' @param bar_color_auto define color space in RGB or CIE, must be a character vector of length 2.
+#' @param na_values (optional) define missing values present in vars.
+#' @param na_group (optional, only used if group != NULL) define missing values present in group.
+#' @param na_drop logical, if TRUE missing values defined by na_values are dropped.
+#' @param na_plot determines how missing values are display if na_drop = TRUE.
+#'     'bar' (default) displays missing values as separate bar
+#'     'graph' displays missing values as separate bar chart
+#' @param na_bar_color character, defines bar color of na_plot
+#' @param na_bar_text_color character, defines label color if na_plot = 'bar'
+#' @param na_bar_text_nudge numeric, adjusts  label position if na_plot = 'bar'
 #' @return A-ggplot2::ggplot()-object or a list()
 #' @examples
-#' plot_likert(data = iris, vars = setosa) ;
+#' library(sjmisc)
+#' data(efc)
+#'
+#' plot_likert(data = efc, vars = c82cop1:c90cop9)
+#'
+#' # Plot different variable by group combinations
+#' plot_likert(data = efc, vars = c82cop1:c90cop9, group = e16sex)
+#'
+#' # use a weighted dataset
+#' library(srvyr)
+#' efc_weighted <- as_survey_design(.data = efc, ids = 1)
+#'
+#' plot_likert(data = efc_weighted, vars = c82cop1:c90cop9)
 #' @export
 
 plot_likert <- function(data,
                         vars,
                         group = NULL,
-                        weight = NULL,
                         reverse_coding = FALSE,
                         bar_color_manual = NULL,
                         bar_color_auto = c("#fce629", "#460456"),
@@ -91,7 +116,7 @@ plot_likert <- function(data,
 
   } else {
 
-    if (is.data.frame(data)) data <- srvyr::as_survey_design(.data = data, weights = {{weight}}, ids = 1)
+    if (is.data.frame(data)) data <- srvyr::as_survey_design(.data = data, ids = 1)
 
     if (na_drop) {
 

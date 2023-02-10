@@ -21,6 +21,7 @@ plot_prevalence <- function(data,
                             show_confint = TRUE,
                             conf_level = 0.95,
                             sort = "asc",
+                            group_sort_val = NULL,
                             dec = 0,
                             axis_text_width = 35,
                             ...) {
@@ -76,16 +77,31 @@ plot_prevalence <- function(data,
                                   ~stringr::str_wrap(., axis_text_width))) %>%
       dplyr::filter(var_value %in% prop_values)
 
-    if (sort == "asc") {
+    srt_levels_group <- unique(srvy_data[["group_value"]])
+    srt_labels_group <- unique(srvy_data[["group_label"]])
+
+    min_group <- min(srvy_data[["group_value"]], na.rm = TRUE)
+    max_group <- max(srvy_data[["group_value"]], na.rm = TRUE)
+
+    if (is.null(group_sort_val)) group_sort_val <- max_group
+
+    if (!is.null(group_sort_val) & !dplyr::between(group_sort_val, left = min_group, right = max_group)) {
+
+      stop(paste("group_sort_val must be an integer between", min_group, "and", max_group))
+
+
+    }
+
+    if (sort == "desc") {
 
       srvy_data_srt <- srvy_data %>%
-        dplyr::group_by(group_value) %>%
+        dplyr::filter(group_value == group_sort_val) %>%
         dplyr::arrange(proportion)
 
-    } else if (sort == "desc") {
+    } else if (sort == "asc") {
 
       srvy_data_srt <- srvy_data %>%
-        dplyr::group_by(group_value) %>%
+        dplyr::filter(group_value == group_sort_val) %>%
         dplyr::arrange(desc(proportion))
 
     } else {
@@ -94,11 +110,8 @@ plot_prevalence <- function(data,
 
     }
 
-    srt_levels_group <- unique(srvy_data_srt[["group_value"]])
-    srt_labels_group <- unique(srvy_data_srt[["group_label"]])
-
-    srt_levels <- unique(srvy_data_srt[["var_name"]])
-    srt_labels <- unique(srvy_data_srt[["var_label"]])
+    srt_levels <- srvy_data_srt[["var_name"]]
+    srt_labels <- srvy_data_srt[["var_label"]]
 
     srvy_data <- srvy_data %>%
       dplyr::mutate(prop_label = ifelse(proportion > 0,
@@ -145,12 +158,12 @@ plot_prevalence <- function(data,
 
     }
 
-    if (sort == "asc") {
+    if (sort == "desc") {
 
       srvy_data_srt <- srvy_data %>%
         dplyr::arrange(proportion)
 
-    } else if (sort == "desc") {
+    } else if (sort == "asc") {
 
       srvy_data_srt <- srvy_data %>%
         dplyr::arrange(desc(proportion))

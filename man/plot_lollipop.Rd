@@ -2,7 +2,7 @@
 % Please edit documentation in R/plot_lollipop.R
 \name{plot_lollipop}
 \alias{plot_lollipop}
-\title{Plots a Lollipop Plot}
+\title{Plot Lollipop Charts}
 \usage{
 plot_lollipop(
   data,
@@ -46,7 +46,7 @@ plot_lollipop(
 A-ggplot()-object
 }
 \description{
-Plots lollipop plots with or without grouping.
+Plots lollipop charts with or without grouping.
 }
 \examples{
 plot_lollipop(data = iris, vars = setosa) ;

@@ -8,7 +8,6 @@ plot_likert(
   data,
   vars,
   group = NULL,
-  weight = NULL,
   reverse_coding = FALSE,
   bar_color_manual = NULL,
   bar_color_auto = c("#fce629", "#460456"),
@@ -48,7 +47,33 @@ plot_likert(
 )
 }
 \arguments{
-\item{data}{Data frame}
+\item{data}{data frame or a weighted data frame of class 'tbl_svy'.}
+
+\item{vars}{variable names, must be a symbol or character vector.}
+
+\item{group}{(optional) only used if grouping variable is supplied.}
+
+\item{reverse_coding}{reverse coding of valid response categories.}
+
+\item{bar_color_manual}{(optional) user defined colors, must be a character vector of same length as the number of valid response categories.}
+
+\item{bar_color_auto}{define color space in RGB or CIE, must be a character vector of length 2.}
+
+\item{na_values}{(optional) define missing values present in vars.}
+
+\item{na_group}{(optional, only used if group != NULL) define missing values present in group.}
+
+\item{na_drop}{logical, if TRUE missing values defined by na_values are dropped.}
+
+\item{na_plot}{determines how missing values are display if na_drop = TRUE.
+'bar' (default) displays missing values as separate bar
+'graph' displays missing values as separate bar chart}
+
+\item{na_bar_color}{character, defines bar color of na_plot}
+
+\item{na_bar_text_color}{character, defines label color if na_plot = 'bar'}
+
+\item{na_bar_text_nudge}{numeric, adjusts  label position if na_plot = 'bar'}
 }
 \value{
 A-ggplot2::ggplot()-object or a list()
@@ -57,5 +82,17 @@ A-ggplot2::ggplot()-object or a list()
 Plots likert scales with even and odd number of categories as centered stacked bar charts with and without missing values.
 }
 \examples{
-plot_likert(data = iris, vars = setosa) ;
+library(sjmisc)
+data(efc)
+
+plot_likert(data = efc, vars = c82cop1:c90cop9)
+
+# Plot different variable by group combinations
+plot_likert(data = efc, vars = c82cop1:c90cop9, group = e16sex)
+
+# use a weighted dataset
+library(srvyr)
+efc_weighted <- as_survey_design(.data = efc, ids = 1)
+
+plot_likert(data = efc_weighted, vars = c82cop1:c90cop9)
 }
