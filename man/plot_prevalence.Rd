@@ -16,6 +16,7 @@ plot_prevalence(
   show_confint = TRUE,
   conf_level = 0.95,
   sort = "asc",
+  group_sort_val = NULL,
   dec = 0,
   axis_text_width = 35,
   ...

@@ -8,9 +8,11 @@ plot_likert(
   data,
   vars,
   group = NULL,
+  grouping = "group_by_vars",
+  grouping_title = FALSE,
   reverse_coding = FALSE,
   bar_color_manual = NULL,
-  bar_color_auto = c("#fce629", "#460456"),
+  bar_color_auto = NULL,
   bar_width = 0.65,
   na_values = NULL,
   na_group = NULL,
@@ -20,7 +22,7 @@ plot_likert(
   na_bar_text_color = "grey",
   na_bar_text_nudge = 0.05,
   na_graph_nudge = 0.1,
-  na_graph_expand = c(0.015, 0),
+  na_graph_expand = expansion(0.015, 0),
   na_graph_limits = c(-0.4, 1),
   na_label = "missing values",
   valid_label = "valid values",
@@ -38,6 +40,7 @@ plot_likert(
   legend = "standard",
   alpha = 1,
   guide = guide_legend(nrow = 1, override.aes = list(alpha = 1)),
+  offset_x = c(0, 0),
   title = NULL,
   subtitle = NULL,
   xlab = NULL,
@@ -57,7 +60,7 @@ plot_likert(
 
 \item{bar_color_manual}{(optional) user defined colors, must be a character vector of same length as the number of valid response categories.}
 
-\item{bar_color_auto}{define color space in RGB or CIE, must be a character vector of length 2.}
+\item{bar_color_auto}{define color space in RGB or CIE, must be a character vector of length > 1.}
 
 \item{na_values}{(optional) define missing values present in vars.}
 

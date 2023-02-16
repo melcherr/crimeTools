@@ -1,0 +1,26 @@
+{
+    "id": "CB54E02B",
+    "path": "~/Installationsordner/R_PackageDev/crimeTools/R/crimeTools-package.R",
+    "project_path": "R/crimeTools-package.R",
+    "type": "r_source",
+    "hash": "4227811504",
+    "contents": "",
+    "dirty": false,
+    "created": 1675866477102.0,
+    "source_on_save": false,
+    "relative_order": 4,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "8,15",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1675952916,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1675952916,
+    "read_only": false,
+    "read_only_alternatives": []
+}

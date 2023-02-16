@@ -57,9 +57,7 @@ plot_prevalence <- function(data,
     data_label <- data$variables %>%
       dplyr::select({{vars}})
 
-    value_labels <- sjlabelled::get_labels(data_label,
-                                           drop.unused = TRUE,
-                                           values = "n")
+    value_labels <- sjlabelled::get_labels(data_label, drop.unused = TRUE, values = "n")
     var_labels <- sjlabelled::get_label(data_label)
     group_labels <- data$variables %>%
       srvyr::filter({{group}} %nin% na_group) %>%
@@ -129,7 +127,6 @@ plot_prevalence <- function(data,
                         group_value,
                         var_name,
                         fill = list(proportion = 0,
-                                    proportion_upp = 0,
                                     n = 0))
 
       srt_levels_group <- unique(srvy_data[["group_value"]])
@@ -170,7 +167,7 @@ plot_prevalence <- function(data,
       srt_labels <- srvy_data_srt[["var_label"]]
 
       srvy_data <- srvy_data %>%
-        dplyr::mutate(prop_label = ifelse(proportion >= 0,
+        dplyr::mutate(prop_label = ifelse(proportion > 0,
                                           to_string_pct(proportion, dec = dec, fac = 100),
                                           NA_character_),
                       group_value = factor(group_value,
@@ -181,119 +178,100 @@ plot_prevalence <- function(data,
                                         labels = srt_labels)) %>%
         dplyr::rename(var = var_name)
 
-      if (show_n) {
-
-        srvy_data <- srvy_data %>%
-          dplyr::group_by(var, group_value) %>%
-          dplyr::mutate(prop_label = paste0(prop_label, " (", round(sum(n), 0), ")")) %>%
-          dplyr::ungroup()
-
-      }
-
-      group_value <- expr(group_value)
-
-    }
-
-    else {
-
-      varnames <- data$variables %>%
-        dplyr::select({{vars}}) %>%
-        sjlabelled::get_label()
-
-      srvy_data <- data %>%
-        srvyr::mutate(srvyr::across({{vars}},
-                                    ~sjlabelled::as_labelled(.))) %>%
-        srvyr_aggregation({{vars}},
-                          conf_level = conf_level,
-                          na_values = na_values) %>%
-        dplyr::mutate(label = stringr::str_wrap(label, axis_text_width)) %>%
-        dplyr::filter(value %in% prop_values)
-
-      if (length(varnames) > nrow(srvy_data)) {
-
-        var_na <- varnames[names(varnames) %nin% srvy_data[["var"]]]
-
-        data_na <- dplyr::tibble(var = names(var_na),
-                                 label = stringr::str_wrap(var_na, axis_text_width),
-                                 proportion = 0,
-                                 proportion_upp = 0,
-                                 n = 0)
-
-        srvy_data <- srvy_data %>%
-          dplyr::bind_rows(data_na)
-
-      }
-
       srvy_data
 
-      if (show_n) {
+    #   if (show_n) {
+    #
+    #     srvy_data <- srvy_data %>%
+    #       dplyr::group_by(var, group_value) %>%
+    #       dplyr::mutate(prop_label = paste0(prop_label, " (", round(sum(n), 0), ")")) %>%
+    #       dplyr::ungroup()
+    #
+    #   }
+    #
+    #   group_value <- expr(group_value)
+    #
+     }
 
-        srvy_data <- srvy_data %>%
-          dplyr::group_by(label) %>%
-          dplyr::mutate(label = paste0(label, "\nn = ", round(sum(n), 0))) %>%
-          dplyr::ungroup()
-
-      }
-
-      if (sort == "desc") {
-
-        srvy_data_srt <- srvy_data %>%
-          dplyr::arrange(proportion)
-
-      } else if (sort == "asc") {
-
-        srvy_data_srt <- srvy_data %>%
-          dplyr::arrange(desc(proportion))
-
-      } else {
-
-        srvy_data_srt <- srvy_data
-
-      }
-
-      srt_levels <- srvy_data_srt[["var"]]
-      srt_labels <- srvy_data_srt[["label"]]
-
-      srvy_data <- srvy_data %>%
-        dplyr::mutate(prop_label = ifelse(proportion >= 0,
-                                          to_string_pct(proportion, dec = dec, fac = 100),
-                                          NA_character_),
-                      var = factor(var,
-                                   levels = srt_levels,
-                                   labels = srt_labels))
-
-      group_value <- expr(NULL)
-
-    }
-
-    if (graph_type == "bar") {
-
-      srvy_data <- srvy_data %>%
-        dplyr::mutate(proportion_low = ifelse(proportion_low < 0,
-                                              0,
-                                              proportion_low))
-
-      plot_bar(data = srvy_data,
-               y = var,
-               x = proportion,
-               xmin = proportion_low,
-               xmax = proportion_upp,
-               text = prop_label,
-               group = {{group_value}},
-               show_confint = show_confint,
-               ...)
-
-    } else if (graph_type == "lollipop") {
-
-      plot_lollipop(data = srvy_data,
-                    y = var,
-                    x = proportion,
-                    text = prop_label,
-                    group = {{group_value}},
-                    ...)
-
-    }
-
-  }
+  #   else {
+  #
+  #     srvy_data <- data %>%
+  #       srvyr::mutate(srvyr::across({{vars}},
+  #                                   ~sjlabelled::as_labelled(.))) %>%
+  #       srvyr_aggregation({{vars}},
+  #                         conf_level = conf_level,
+  #                         na_values = na_values) %>%
+  #       dplyr::mutate(label = stringr::str_wrap(label, axis_text_width)) %>%
+  #       dplyr::filter(value %in% prop_values)
+  #
+  #     if (show_n) {
+  #
+  #       srvy_data <- srvy_data %>%
+  #         dplyr::group_by(label) %>%
+  #         dplyr::mutate(label = paste0(label, "\nn = ", round(sum(n), 0))) %>%
+  #         dplyr::ungroup()
+  #
+  #     }
+  #
+  #     if (sort == "desc") {
+  #
+  #       srvy_data_srt <- srvy_data %>%
+  #         dplyr::arrange(proportion)
+  #
+  #     } else if (sort == "asc") {
+  #
+  #       srvy_data_srt <- srvy_data %>%
+  #         dplyr::arrange(desc(proportion))
+  #
+  #     } else {
+  #
+  #       srvy_data_srt <- srvy_data
+  #
+  #     }
+  #
+  #     srt_levels <- srvy_data_srt[["var"]]
+  #     srt_labels <- srvy_data_srt[["label"]]
+  #
+  #     srvy_data <- srvy_data %>%
+  #       dplyr::mutate(prop_label = ifelse(proportion > 0,
+  #                                         to_string_pct(proportion, dec = dec, fac = 100),
+  #                                         NA_character_),
+  #                     var = factor(var,
+  #                                  levels = srt_levels,
+  #                                  labels = srt_labels))
+  #
+  #     group_value <- expr(NULL)
+  #
+  #   }
+  #
+  #   if (graph_type == "bar") {
+  #
+  #     srvy_data <- srvy_data %>%
+  #       dplyr::mutate(proportion_low = ifelse(proportion_low < 0,
+  #                                             0,
+  #                                             proportion_low))
+  #
+  #     plot_bar(data = srvy_data,
+  #              y = var,
+  #              x = proportion,
+  #              xmin = proportion_low,
+  #              xmax = proportion_upp,
+  #              text = prop_label,
+  #              group = {{group_value}},
+  #              show_confint = show_confint,
+  #              ...)
+  #
+  #   } else if (graph_type == "lollipop") {
+  #
+  #     plot_lollipop(data = srvy_data,
+  #                   y = var,
+  #                   x = proportion,
+  #                   text = prop_label,
+  #                   group = {{group_value}},
+  #                   ...)
+  #
+  #   }
+  #
+   }
 
 }
