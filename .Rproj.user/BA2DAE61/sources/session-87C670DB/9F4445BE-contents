@@ -1,0 +1,504 @@
+# P A K E T E ----------------------------------------------------------------
+
+library(tidyverse)
+library(sjmisc)
+library(sjlabelled)
+library(rlang)
+library(openxlsx)
+library(irr)
+
+get_counts <- function(x) {
+  
+  x <- ifelse(x == "1 Tag", "", ifelse(str_detect(tolower(x), "nie"), "0", x))
+  
+  x <- str_extract_all(string = x, pattern = "[:digit:]+")
+  
+  map_dbl(.x = x, ~.x %>% as.numeric %>% mean %>% ceiling)
+  
+}
+
+check_equal <- function(x, n = 2) combn(x, n) %>% apply(2, function(x) identical(x[[1]], x[[2]]))
+
+get_vars <- function(x) {
+  
+  x_check <- check_equal(x)
+  
+  if (all(x_check)) unique(x)
+  
+  else if (any(x_check) & !all(x_check)) x[duplicated(x)]
+  
+  else if (!all(x_check)) NA_character_ 
+  
+  
+}
+
+`%nin%` <- function(x, y) !match(x, y, nomatch = FALSE)
+
+write_workbook <- function(list, file, overwrite = TRUE) {
+  
+  wb <- createWorkbook()
+  
+  walk2(.x = names(list), 
+        .y = list,
+        ~quos(addWorksheet(wb, {{.x}}), 
+              writeData(wb, {{.y}}, sheet = {{.x}}, headerStyle = createStyle(textDecoration = "Bold")),
+              setColWidths(wb, sheet = {{.x}}, cols = 1:ncol({{.y}}), widths = "auto")) %>%
+          walk(.x = ., ~eval_tidy({{.x}}, env = globalenv())))
+  
+  saveWorkbook(wb, paste0("Daten/", file, ".xlsx"), overwrite = overwrite)
+  
+}
+
+# D A T E N ----------------------------------------------------------------
+
+# * Bereinigung um doppelte Fälle =================================
+
+skisax_doppelt <- read_stata("Daten/01_Befragungsdaten/infas_doppelte_Fälle_7529SKiSAX_20220819.dta", convert.factors = FALSE)
+
+skisax_doppelt %>% 
+  group_by(lfd) %>% 
+  summarise(across(everything(), ~any(duplicated(.)))) %>% 
+  rowwise() %>% 
+  summarise(summe = sum(c_across(q1a:q54))/346)
+
+
+# * Bereinigung der Rohdaten um Fälle mit hohem Missinganteil =================================
+
+skisax <- read_stata("Daten/01_Befragungsdaten/infas_bereinigter_Rohdatensatz_7529SKiSAX_20220824.dta", 
+                     convert.factors = FALSE, 
+                     encoding = "utf8") %>%
+  rowwise() %>% 
+  mutate(missing = sum(c_across(where(is.numeric)) %in% c(NA, -99, -98, -96, -95, -89, -88)),
+         missing_kf = sum(c_across(q7:q12i) %in% c(NA, -99, -98, -96, -95, -89, -88)),
+         missing_anteil_kf = missing_kf/54 * 100,
+         missing_ef = sum(c_across(q13a:q19a) %in% c(NA, -99, -98, -96, -95, -89, -88)),
+         missing_anteil_ef = missing_ef/19 * 100,
+         missing_anteil = missing/307 * 100) %>% # 307 separate Variablen
+  ungroup()
+
+skisax_missing <- skisax %>% 
+  filter(missing_anteil > 25) %>% 
+  arrange(desc(missing_anteil))
+
+# * Export der offenen Nennungen =================================
+
+map(.x = setNames(exprs(q19js, q20_1qs, q22js, q27ps, q34s, q45hs, q47s, q48s, q49s), 
+                    c("q19js_nennungen", "q20_1qs_nennungen", "q22js_nennungen",
+                      "q27ps_nennungen", "q34s_nennungen", "q45hs_nennungen",
+                      "q47s_nennungen", "q48s_nennungen", "q49s_nennungen")),
+      ~skisax %>% 
+        select(lfd, all_of(.x)) %>% 
+        filter({{.x}} != "" & {{.x}} != "-97 trifft nicht zu" & {{.x}} != "-99 keine Angabe")) %>% 
+  append(., 
+         map(.x = list(paste0("q19", letters[1:10]),
+                       paste0("q20_1", letters[1:17]),
+                       paste0("q22", letters[1:10]),
+                       paste0("q27", letters[1:16])),
+             ~get_label(select(skisax,.x)) %>% 
+               data.frame("Merkmal" = .) %>% 
+               rownames_to_column(var = "Variablencode")) %>% 
+           setNames(c("q19js_code", "q20_1qs_code", "q22js_code", "q27ps_code"))
+         ) %>% 
+  .[sort(names(.))] %>% 
+  write_workbook(file = "02_Kodierungen/infas_Befragungsdaten_SKiSAX7529_offene_nennungen")
+
+
+# * Aufbereitung der Kodierungen =================================
+
+kodierungen_final <- 
+  map(.x = c("q19js", "q20_1qs", "q22js", "q27ps"),
+      function(x) {
+        
+        var <- parse_expr(paste0(x, "_k"))
+        
+        map(.x = c("LH", "AL", "LA"), 
+            function(y) openxlsx::readWorkbook(
+              paste0("Daten/02_Kodierungen/", "2022_10_24_Kodierung_offene_Nennungen_", y, ".xlsx"),
+              sheet = paste0(x, "_nennungen"))) %>% 
+          reduce(left_join) %>% 
+          mutate(across(LH:LA, function(z) z %>% 
+                          str_replace(string = ., "-|keine", NA_character_) %>% 
+                          str_remove_all(string = ., "\\s") %>% 
+                          str_replace_all(., pattern = "\\+|oder", "/"))) %>% 
+          rowwise() %>% 
+          mutate(pairwise_equal = list(set_names(check_equal(c_across(LH:LA)),
+                                                 c("LH_AL", "LH_LA", "AL_LA")))) %>% 
+          unnest_wider(col = pairwise_equal) %>% 
+          rowwise() %>%
+          mutate(min2_equal = if_else(sum(c_across(LH_AL:AL_LA)) >= 1, TRUE, FALSE),
+                 all_equal = if_else(sum(c_across(LH_AL:AL_LA)) == 3, TRUE, FALSE),
+                 {{var}} := get_vars(c_across(LH:LA)),
+                 {{var}} := if_else(min2_equal == FALSE & is.na({{var}}), str_remove(x, "s"), {{var}}))
+        
+      }) %>% 
+  setNames(c("q19js", "q20_1qs", "q22js", "q27ps")) %>% 
+  map2(.x = ., 
+     .y = names(.),
+     function(x, y) {
+       
+       code <- parse_expr(names(x)[[11]])
+       
+       readWorkbook("Daten/02_Kodierungen/Kodierungen_offene_nennungen_konflikt.xlsx", sheet = y) %>% 
+         select(lfd, {{code}}) %>% 
+         rename(code = 2) %>% 
+         left_join(x, .) %>% 
+         mutate({{code}} := if_else(!min2_equal, code, {{code}})) %>% 
+         select(lfd, ends_with("s"), ends_with("_k")) %>% 
+         separate_rows({{code}}, sep = "/")
+       
+     })
+
+kodierungen_herkunft <- 
+  map(.x = paste0(c("q45hs", "q47s", "q48s", "q49s"), "_nennungen"),
+      ~readWorkbook("Daten/02_Kodierungen/Kodierung_Herkunft_Version_1.0.0.xlsx",
+                    sheet = .x)[,c(1,3)]) %>% 
+  reduce(left_join)
+
+kodierungen_parteien <- skisax %>% 
+  select(lfd) %>% 
+  filter(lfd %nin% c(10013790, 10013163, 10000751, 10011007, 10004989, 10005632, 10002182)) %>% 
+  left_join(readWorkbook("Daten/02_Kodierungen/Kodierungen_Parteien_Version_1.0.0.xlsx")[,c(1,3)])
+
+
+# * Bereinigung des Datensatzes für die Gewichtung  =================================
+
+skisax_bereinigt <- 
+  skisax %>% 
+  filter(!(lfd %in% c(10013790, 10013163, 10000751, 10011007, 10004989, 10005632, 10002182))) %>% 
+  replace_na(q1a:q19j, q20_1a:q20_1q, q21, q22a:q22j, q28:q34, q35a:q52, q54, value = -99) %>% 
+  mutate(across(matches("[a-z]_str"), ~get_counts(.)),
+         !!!unlist(map(.x = names(select(skisax, matches("[a-z]_str"))),
+                       function(x) {
+                         
+                         q20_str <- parse_expr(x)
+                         q20 <- parse_expr(str_remove(x, "_str"))
+                         
+                         quos({{q20}} := if_else({{q20}} == -89 & !is.na({{q20_str}}), {{q20_str}}, {{q20}}))
+                         
+                       })),
+         !!!unlist(map(.x = parse_exprs(read_csv2("Daten/02_Kodierungen/Variablencodes_Version_1.0.0.csv")$code), function(x) quos({{x}} := 2))),
+         !!!flatten(map2(.x = kodierungen_final,
+                         .y = names(kodierungen_final),
+                         function(x, y) {
+                           
+                           variable <- parse_expr(y)
+                           y_k <- parse_expr(paste0(y, "_k"))
+                           y <- str_remove(y, "s")
+                           
+                           string_quo <- 
+                             pmap(list(id = x[[1]], 
+                                       string = x[[2]],
+                                       code = x[[3]]),
+                                  function(id, string, code) {
+                                    
+                                    quos({{variable}} := case_when(lfd == {{id}} & {{code}} == y ~ {{string}}, 
+                                                                   lfd == {{id}} & ((!is.na({{code}}) & {{code}} != y) | is.na({{code}})) ~ "-97 trifft nicht zu",
+                                                                   TRUE ~ {{variable}}))})
+                           x_subset <- x %>% 
+                             filter(!is.na({{y_k}})) 
+                           
+                           code_quo <- 
+                             pmap(list(id = x_subset[[1]], 
+                                       string = x_subset[[2]], 
+                                       code = parse_exprs(x_subset[[3]])),
+                                  function(id, string, code) quos({{code}} := if_else(lfd == {{id}}, 1, {{code}})))
+                           
+                           append(string_quo, code_quo) %>% unlist()
+                           
+                         })),
+         !!!unlist(map(.x = letters[1:17],
+                       function(x) {
+                         
+                         q20_1 <- parse_expr(paste0("q20_1", x))
+                         q20_2 <- parse_expr(paste0("q20_2", x))
+                         q20_3 <- parse_expr(paste0("q20_3", x))
+                         
+                         q24_value <- which(letters == x)
+                         
+                         quos({{q20_1}} := case_when({{q20_1}} %in% c(-99, -89, 2) & ({{q20_2}} > 0 | {{q20_3}} > 0 | q24 == q24_value) ~ 1,
+                                                     TRUE ~ {{q20_1}}),
+                              {{q20_2}} := case_when({{q20_1}} == 2 & {{q20_2}} %in% c(-99 -89, 0, NA) ~ -97,
+                                                     ({{q20_1}} %in% c(-99, -89) & {{q20_2}} %in% c(-97, -89, 0, NA)) |
+                                                       ({{q20_1}} == 1 & {{q20_2}} == -97)  ~ -99,
+                                                     TRUE ~ {{q20_2}}),
+                              {{q20_3}} := case_when({{q20_1}} == 2 & {{q20_3}} %in% c(-99, -89, 0, NA) ~ -97,
+                                                     ({{q20_1}} %in% c(-99, -89) & {{q20_3}} %in% c(-97, -89, 0, NA)) | 
+                                                       ({{q20_1}} == 1 & {{q20_3}} == -97)  ~ -99,
+                                                     {{q20_3}} > {{q20_2}} ~ {{q20_2}},    
+                                                     TRUE ~ {{q20_3}}))
+                         
+                       })),
+         !!!unlist(map(.x = exprs(q19j, q20_1q, q22j),
+                       function(x) {
+                         
+                         string <- parse_expr(paste0(as_string(x), "s"))
+                         
+                         quos({{string}} := case_when({{x}} %in% c(-99, 1) & {{string}} %in% c(NA_character_, "", "-97 trifft nicht zu") ~ "-99 keine Angabe",
+                                                      {{x}} %in% c(-97, -98, 2) & {{string}} %in% c("", NA_character_) ~ "-97 trifft nicht zu",
+                                                      {{x}} %in% c(-97, -98)  & {{string}} == "-99 keine Angabe" ~ "-97 trifft nicht zu",
+                                                      TRUE ~ {{string}}),
+                              {{x}} := case_when({{x}} %in% c(-99, -97, 2) & {{string}} %nin% c(NA_character_, "", "-99 keine Angabe", "-97 trifft nicht zu") ~ 1,
+                                                 {{x}} == 1 & {{string}} == "-99 keine Angabe" ~ -99,
+                                                 TRUE ~ {{x}})) 
+                         
+                       })),
+         !!!pmap(list(x = exprs(q20_1r, q20_1s, q20_1t, q20_1u, q20_1r, q20_1s, q20_1t, q20_1u),
+                      y = exprs(q20_2r, q20_2s, q20_2t, q20_2u, q20_3r, q20_3s, q20_3t, q20_3u),
+                      z = exprs(q20_2q, q20_2q, q20_2q, q20_2q, q20_3q, q20_3q, q20_3q, q20_3q)),
+                 function(x, y, z) quo(across({{y}}, ~case_when({{x}} == 1 ~ {{z}},
+                                                                {{x}} != 1 & {{z}} > 0 ~ -97,
+                                                                TRUE ~ {{z}})))),
+         !!!map2(.x = exprs(q19k:q19m, q20_1r:q20_1u, q22k:q22n),
+                 .y = exprs(q19j, q20_1q, q22j),
+                 function(x, y) quo(across({{x}}, ~if_else(. == 2 & {{y}} != 1, {{y}}, .)))),
+         !!!map2(.x = exprs(q20_1r, q20_1s, q20_1t, q20_1u, q20_1r, q20_1s, q20_1t, q20_1u),
+                 .y = exprs(q20_2r, q20_2s, q20_2t, q20_2u, q20_3r, q20_3s, q20_3t, q20_3u),
+                 function(x, y) quo(across({{y}}, ~case_when(. %in% c(-99, -89, 0) & {{x}} == 2 ~ -97, 
+                                                             {{x}} %in% c(-99, 1) & . == -97 ~ -99,
+                                                             TRUE ~ .))))) %>% 
+  relocate(q19k:q19m, .before = q19js) %>% 
+  relocate(q20_1r:q20_1u, .before = q20_1qs) %>% 
+  relocate(q20_2r:q20_2u, .after = q20_2q) %>% 
+  relocate(q20_3r:q20_3u, .after = q20_3q) %>%
+  relocate(q22k:q22n, .before = q22js) %>% 
+  rowwise() %>% 
+  mutate(any_q20_ja = any(c_across(q20_1a:q20_1u) == 1),
+         all_q20_nein = all(c_across(q20_1a:q20_1u) %in% c(2, -88:-99, NA)),
+         all_q20_na = all(c_across(q20_1a:q20_1u) %in% c(-88:-99, NA)),
+         any_q20_hc_ja = any(c_across(c(q20_1a:q20_1c, q20_1e:q20_1f, q20_1h:q20_1i, q20_1n, q20_1o)) == 1),
+         all_q20_hc_nein = all(c_across(c(q20_1a:q20_1c, q20_1e:q20_1f, q20_1h:q20_1i, q20_1n, q20_1o)) %in% c(2, -88:-99, NA)),
+         all_q20_hc_na = all(c_across(c(q20_1a:q20_1c, q20_1e:q20_1f, q20_1h:q20_1i, q20_1n, q20_1o)) %in% c(-88:-99, NA)),
+         which_q20_ja = list(paste0("q20_1", letters[1:21])[which(c_across(q20_1a:q20_1u) == 1)]),
+         across(any_q20_ja:all_q20_hc_na, ~ifelse(is.na(.), FALSE, .))) %>% 
+  ungroup() %>% 
+  left_join(kodierungen_herkunft, by = "lfd") %>% 
+  left_join(kodierungen_parteien, by = "lfd") %>% 
+  mutate(which_q20_ja = map_dbl(which_q20_ja, ~ifelse(length(.x) == 1, which(letters == str_sub(.x, -1)), NA_real_)),
+         q21 = case_when(any_q20_hc_ja & q21 %in% c(-89, -99, 2) & Methode == 2 ~ 1, 
+                         all_q20_hc_nein & !all_q20_hc_na & q21 %in% c(-89, -99, 1) & Methode == 2 ~ 2,
+                         all_q20_hc_na & q21 == 2 & Methode == 2 ~ -99,
+                         Methode == 1 ~ -97,
+                         TRUE ~ q21),
+         q23 = case_when(any_q20_ja & q23 %in% c(-89, -99, 2) & Methode == 2 ~ 1, 
+                         all_q20_nein & !all_q20_na & q23 %in% c(-89, -99, 1) & Methode == 2 ~ 2,
+                         all_q20_na & q23 == 2 & Methode == 2 ~ -99,
+                         Methode == 1 ~ -97,
+                         TRUE ~ q23),
+         across(q22a:q22n, ~case_when(q21 == 2 & . %in% c(-98, -99, -89, 1, 2) ~ -97,
+                                      (q21 == 1 & . == -97) | (q21 == -99 & . != -99) ~ -99,
+                                      TRUE ~ .)),
+         q22j = case_when(q22j == -98 | (q22j == 1 & q22js == "-99 keine Angabe") ~ -99,
+                         q22j == -97 & q22js %nin% c("-99 keine Angabe", "-97 trifft nicht zu") & q21 == 1 ~ 1,
+                         TRUE ~ q22j),
+         q22js = case_when(q22j == -99 ~ "-99 keine Angabe", 
+                           q22j == -97  ~ "-97 trifft nicht zu",
+                           TRUE ~ q22js),
+         across(q24:q26, ~case_when((q23 == -99 & (. %in% c(-97, -89) | . > 0)) | (q23 == 1 & . == -97) | is.na(.) ~ -99,
+                                    q23 == 2 & (. %in% c(-99, -89) | . > 0) ~ -97,
+                                    TRUE ~ .)),
+         q24 = if_else(q24 %in% c(-97, -99) & !is.na(which_q20_ja), which_q20_ja, q24),
+         across(q25:q26, ~case_when(q24 %in% c(-89, -99) ~ -99, 
+                                    q24 == -97 ~ -97,
+                                    TRUE ~ .)),
+         across(q27a:q27p, ~case_when(q26 == -97 ~ -97,
+                                      q26 == -99 | is.na(q26) ~ -99,
+                                      q26 == 1 & . %in% c(0, 1) ~ -97,
+                                      TRUE ~ .)),
+         q27ps = case_when((q27p %in% c(-99, 1) & q27ps %in% c(NA_character_, "", "-97 trifft nicht zu")) | q26 == -99 ~ "-99 keine Angabe",
+                           (q27p %in% c(-97, -98, 0) & q27ps %in% c(NA_character_, "")) | (q27p %in% c(-97, -98) & q27ps == "-99 keine Angabe") | q26 %in% c(-97 , 1) ~ "-97 trifft nicht zu",
+                           TRUE ~ q27ps),
+         q27p = case_when(q27p %in% c(-99, -97, 0) & q27ps %nin% c("", "-99 keine Angabe", "-97 trifft nicht zu") & q26 %nin% c(-99, -97, 1) ~ 1,
+                          q27p == 1 & q27ps == "-99 keine Angabe" ~ -99,
+                          TRUE ~ q27p),
+         !!!unlist(map(.x = letters[1:6],
+                       function(x) {
+                         
+                         vertrauen <- parse_expr(paste0("q30b", x))
+                         zufriedenheit <- parse_expr(paste0("q31", x))
+                         
+                         quos({{zufriedenheit}} := if_else({{vertrauen}} == -95, -95, {{zufriedenheit}}),
+                              {{vertrauen}} := if_else({{zufriedenheit}} == -95, -95, {{vertrauen}}))
+                         
+                       })),
+         q34s = ifelse(q34s %nin% c("-99 keine Angabe", "-97 trifft nicht zu"), q34s_kodiert, q34s),
+         q34 = ifelse(q34 == -99 & q34s %nin% c("-99 keine Angabe", "-97 trifft nicht zu", NA_character_), 7, q34),
+         q34s = case_when((is.na(q34s) | q34s == "-97 trifft nicht zu") & q34 == -99  ~ "-99 keine Angabe",
+                          q34s %nin% c("-99 keine Angabe", "-97 trifft nicht zu") & q34 != 7 ~ "-97 trifft nicht zu",
+                          TRUE ~ q34s),
+         q44_a1 = if_else(q44 > 0, 2022 - q44, q44),
+         q44_a2 = case_when(q44_a1 < 18 & q44_a1 > 0 ~ 1,
+                            between(q44_a1, 18, 24) ~ 2,
+                            between(q44_a1, 25, 29) ~ 3,
+                            between(q44_a1, 30, 39) ~ 4,
+                            between(q44_a1, 40, 49) ~ 5,
+                            between(q44_a1, 50, 64) ~ 6,
+                            between(q44_a1, 65, 79) ~ 7,
+                            q44_a1 >= 80 ~ 8,
+                            TRUE ~ q44_a1),
+         q45hs = if_else(q45hs %nin% c("-97 trifft nicht zu", "-99 keine Angabe"), q45hs_kodiert, q45hs),
+         q45a = case_when(str_detect(q45hs, "Deutsch") ~ 1,
+                          is.na(q45a) ~ -99,
+                          TRUE ~ q45a),
+         q45i = case_when(q45hs == "Staatenlos" ~ 1, 
+                          is.na(q45a) ~ -99,
+                          TRUE ~ q45i),
+         q45hs = case_when(q45hs == c("Deutsch", "Staatenlos") ~ "-97 trifft nicht zu",
+                           q45hs == "nicht lesbar" ~ "-88 nicht lesbar",
+                           is.na(q45hs) ~ "-99 keine Angabe",
+                           TRUE ~ q45hs),
+         q45h = case_when(q45hs %nin% c("-97 trifft nicht zu", "-99 keine Angabe") ~ 1,
+                          q45hs == "-97 trifft nicht zu" & q45h == 1 ~ 0,
+                          TRUE ~ q45h),
+         !!!unlist(map(.x = exprs(q47, q48, q49),
+                       function(x) {
+                         
+                         string <- parse_expr(paste0(as_string(x), "s"))
+                         kodiert <- parse_expr(paste0(as_string(x), "s_kodiert"))
+                         
+                         quos({{x}} := case_when({{kodiert}} == "Deutschland" ~ 1,
+                                                 {{kodiert}} == "Ostgebiete" ~ 2,
+                                                 {{kodiert}} == "unbekannt" ~ -98,
+                                                 {{kodiert}} %nin% c("Deutschland", "Ostgebiete", "unbekannt", "", NA_character_) ~ 3,
+                                                 TRUE ~ {{x}}),
+                              {{kodiert}} := case_when({{kodiert}} %in% c("Deutschland", "Ostgebiete", "unbekannt") | {{x}} %in% c(-98, -89, 1, 2) ~ "-97 trifft nicht zu",
+                                                       {{kodiert}} %in% c("", "-99 keine Angabe", NA_character_) | {{x}} == -99 ~ "-99 keine Angabe",
+                                                       {{kodiert}} == "nicht lesbar" ~ "-88 nicht lesbar",
+                                                       TRUE ~ {{kodiert}}),
+                              {{string}} := {{kodiert}},
+                              {{x}} := if_else({{x}} == 3 & {{string}} == "-99 keine Angabe", -99, {{x}}))
+                         
+                       })),
+         q47_m1 = case_when(q47 %in% c(1, 2) ~ 0,
+                            q47 == 3 ~ 1,
+                            TRUE ~ q47),
+         q47_m2 = case_when(q47 %in% c(1, 2) & q48 %in% c(1, 2) & q49 %in% c(1, 2) ~ 0,
+                            q47 == 3 | q48 == 3 | q49 == 3 ~ 1,
+                            TRUE ~ -99),
+         q50_str = if_else(q50a >= 0 & q50b >= 0, q50a-q50b, -99),
+         q50a = case_when(q50a == 0 | q50_str == 0 ~ q50a + 1, 
+                          q50_str == -1 ~ q50a * q50b,
+                          TRUE ~ q50a),
+         q50b =  if_else(q50b == -99 & q50a == 1, 0, q50b),
+         q52 = case_when(q52mfn == 12 & q44 == 1965 ~ 1,
+                         q52mfn == 26 | (q52mfn == 27 & q44 == -99) | (q52mfn == 12 & q44 == 1962) ~ 2,
+                         q52mfn %in% c(23, 36) ~ 3,
+                         q52mfn %in% c(2346, 46, 34, 24, 14) ~ 4,
+                         q52mfn %in% c(345, 356, 35, 45, 56) | str_detect(q52s, "Univ|Ing") ~ 5,
+                         q52mfn %in% c(267, 16) ~ 6,
+                         q52mfn %in% c(57, 37, 27) & q44 != -99 ~ 7,
+                         TRUE ~ q52),
+         q52 = if_else(is.na(q52), -99, q52),
+         q52s = case_when(str_detect(q52s, "Univ|Ing") ~ "-97 trifft nicht zu",
+                          is.na(q52s) ~ "-97 trifft nicht zu",
+                          TRUE ~ q52s),
+         q52s = case_when(q52s == "-97 trifft nicht zu" & lfd == 10006508 ~ "Facharbeiter - Industriemeister",
+                          q52s == "Berufsschule" ~ "-97 trifft nicht zu",
+                          TRUE ~ q52s),
+         q52mfn = case_when(q52mfn == 12 & q44 == 1965 ~ NA_real_,
+                            q52mfn == 26 | (q52mfn == 27 & q44 == -99) | (q52mfn == 12 & q44 == 1962) ~ NA_real_,
+                            q52mfn %in% c(23, 36) ~ NA_real_,
+                            q52mfn %in% c(2346, 46, 34, 24, 14) ~ NA_real_,
+                            q52mfn %in% c(345, 356, 35, 45, 56) ~ NA_real_,
+                            q52mfn %in% c(267, 16) ~ NA_real_,
+                            q52mfn %in% c(57, 37, 27) & q44 != -99 ~ NA_real_,
+                            TRUE ~ q52mfn),
+         q52 = if_else(q52s != "-97 trifft nicht zu" & q52 == -99, 6, q52),
+         q53 = case_when(!!!map2(.x = exprs(q53a, q53b, q53c, q53d, q53e, q53f, q53g, q53h, q53i, q53j, q53k, q53l),
+                                 .y = 1:12,
+                                 ~quo(!!.x == 1 & q53sum != 2 & q53 == -97 ~ as.numeric(!!.y))),
+                         q53sum == 2 & q53 == -97 ~ -89,
+                         q53 == -97 | is.na(q53) ~ -99,
+                         TRUE ~ q53),
+         q53 = case_when(q53j == 1 & q53 == -88 & (q53h == 1 | q53c == 1)  ~ 10, # Wenn Renter Hausmann oder Hausfrau bzw. geringfügig beschäftigt angegeben haben, zählt Renter.
+                         q53k == 1 & q53 == -88 & q53c == 1  ~ 11, # Wenn arbeitslos und geringfügig beschäftigt, dann zählt arbeitslos. 
+                         q53k == 1 & q53 == -88 & q53l == 1  ~ 12, # Wenn arbeitslos und andere Gründe, dann zählen andere Gründe.
+                         q53d == 1 & q53 == -88 & (q53a == 1 | q53b == 1)  ~ 4, # Wenn Freiwilligendient und Vollzeit, dann zählt Freiwilligendient.
+                         q53e == 1 & q53 == -88 & (q53a == 1 | q53b == 1 | q53c == 1)  ~ 5, # Wenn Ausbildung/Schule und Vollzeit, dann zählt Ausbildung/Schule.
+                         q53f == 1 & q53 == -88 & q53e == 1  ~ 6, # Wenn Ausbildung/Schule und Studium, dann Studium.
+                         q53b == 1 & q53 == -88 & (q53f == 1 | q53c == 1 | q53h == 1) ~ 2, # Wenn Studium oder geringfügig beschäftigt und Teilzeit, dann Teilzeit.
+                         q53a == 1 & q53 == -88 & (q53f == 1 | q53c == 1) ~ 1, # Wenn Studium oder geringfügig beschäftigt und Vollzeit, dann Vollzeit
+                         q53h == 1 & q53 == -88 & q53l == 1 ~ 8, # Wenn Hasumann/Hausfrau und andere Gründe, dann Hausmann/Hausfrau.
+                         TRUE ~ q53),
+         !!!unlist(map(.x = parse_exprs(c(paste0("q19", letters[1:10]), "q21", "q23", "q24", "q25", "q26", "q34", "q47", "q48", "q49", "q45a", "q45h", "q45i", "q50a", "q50b", "q52", "q53",
+                                          paste0("q22", letters[1:10]), paste0("q20_1", letters[1:17]), paste0("q20_2", letters[1:17]),
+                                          paste0("q20_3", letters[1:17]), paste0("q27", letters[1:16]), paste0("q30b", letters[1:6]), paste0("q31", letters[1:6]))),
+                       function(x) {
+                         
+                         quos({{x}} := set_label({{x}}, label = get_label(x = select(skisax, all_of(x)))),
+                              {{x}} := set_labels({{x}}, labels = get_labels(x = select(skisax, all_of(x)), values = "as.name")))
+                         
+                       })),
+         across(q27a:q27p, ~remove_labels(., labels = 9)),
+         q24 = add_labels(q24, labels = c("(R) Kodiert: Verkehrsdelikt." = 18,
+                                          "(S) Kodiert: Beleidigung offline." = 19,
+                                          "(T) Kodiert: Amtsdelikt." = 20,
+                                          "(U) Kodiert: verbale sexuelle Belästigung." = 21)),
+         !!!unlist(map(.x = exprs(q19js, q20_1qs, q22js, q27ps, q34s, q45hs, q47s, q48s, q49s, q52s), 
+                       function(x) quos({{x}} := set_label({{x}}, label = get_label(x = select(skisax, all_of(x))))))),
+         !!!unlist(map2(.x = exprs(q53, lfd),
+                        .y = c("Erwerbstätigkeit", "Laufende Nummer"),
+                        function(x, y) quos({{x}} := set_label({{x}}, label = {{y}})))),
+         !!!pmap(list(x = parse_exprs(read_csv2("Daten/02_Kodierungen/Variablencodes_Version_1.0.0.csv")$code),
+                      y = read_csv2("Daten/02_Kodierungen/Variablencodes_Version_1.0.0.csv")$label,
+                      z = exprs(q19j, q19j, q19j, q20_1q, q20_1q, q20_1q, q20_1q, q20_2q, q20_2q, q20_2q, q20_2q,
+                                q20_3q, q20_3q, q20_3q, q20_3q, q22j, q22j, q22j, q22j)),
+                 function(x, y, z){
+                   
+                   quo(across(.cols = {{x}}, function(a) {
+                     
+                     a %>% 
+                       set_label(label = {{y}}) %>% 
+                       set_labels(labels = get_labels(x = select(skisax, all_of(z)), values = "as.name"))})) 
+                 }),
+         !!!pmap(list(x = exprs(q44_a1, q44_a2, q47_m1, q47_m2),
+                      y = c("Alter", "Altersgruppen", "Migration (bis 1. Generation)", "Migration (bis 2. Generation)"),
+                      z = list(NULL, 
+                               c("unter 18-jährige" = 1, "18- bis 24-Jährige"= 2,
+                                 "25- bis 29-Jährige"= 3,"30- bis 39-Jährige"= 4,
+                                 "40- bis 49-Jährige"= 5, "50- bis 64-Jährige"= 6,
+                                 "65- bis 79-Jährige"= 7, "über 79-Jährige" = 8),
+                               c("ohne Migrationshintergrund" = 0, "mit Migrationshintergrund" = 1),
+                               c("ohne Migrationshintergrund" = 0, "mit Migrationshintergrund" = 1))),
+                 function(x, y, z){
+                   
+                   quo(across(.cols = {{x}}, function(a) {
+                     
+                     a %>% 
+                       set_label(label = {{y}}) %>% 
+                       set_labels(labels = c({{z}}, 
+                                             c("keine Angabe" = -99, 
+                                               "weiß nicht" = -98, 
+                                               "trifft nicht zu" = -97, 
+                                               "explizite Antwortverweigerung" = -96,
+                                               "fälschliche Mehrfachauswahl" = -89,
+                                               "nicht lesbar" = -88)))})) 
+                 })) %>%
+  relocate(q44_a1:q44_a2, .after = q44) %>% 
+  relocate(q47_m1:q47_m2, .after = q47s) %>%
+  select(-c(missing:q34s_kodiert, q52mfn, q53a:q53sum), -ends_with("_str"))
+
+
+# * Export des bereinigten Datensatzes der Soziodemografie für Gewichtung =================================
+
+skisax_soziodemografie <- skisax_bereinigt %>% 
+  select(lfd, q43, q44_a1, q44_a2, q45a, q50a, q52, q52s, q53)
+
+write_stata(skisax_soziodemografie, "Daten/01_Befragungsdaten/infas_bereinigter_Rohdatensatz_7529SKiSAX_20221020.dta")
+
+
+# * Export des finalen Datensatzes mit Gewichtungsvariable =================================
+
+skisax_gewichtung <- read_stata("Daten/01_Befragungsdaten/infas_SKiSAX7529_Gewicht_Final.dta", convert.factors = FALSE)
+
+skisax_final <- skisax_bereinigt %>% 
+  left_join(skisax_gewichtung) %>% 
+  rename(q55 = gkbik10_753, 
+         weight = gewicht) %>% 
+  mutate(weight = set_label(weight, label =  "Gewichtungsfaktor"),
+         ) %>% 
+  relocate(q55, .after = q54) %>% 
+  relocate(weight, .after = lfd) %>%
+  select(-c(sys_currentScreen:status))
+
+sjlabelled::write_stata(skisax_final, "Daten/01_Befragungsdaten/infas_bereinigter_Rohdatensatz_7529SKiSAX_20221124.dta")
+

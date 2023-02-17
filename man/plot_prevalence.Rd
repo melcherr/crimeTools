@@ -8,6 +8,8 @@ plot_prevalence(
   data,
   vars,
   group = NULL,
+  grouping = "group_by_vars",
+  grouping_title = FALSE,
   prop_values,
   graph_type = "bar",
   na_values = NULL,

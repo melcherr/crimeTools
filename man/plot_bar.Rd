@@ -14,7 +14,7 @@ plot_bar(
   text,
   width = 0.75,
   bar_color = "#e36c33",
-  group_bar_color = NULL,
+  group_color = NULL,
   crossbar_color = "#3e6487",
   conf_color = "black",
   show_confint = TRUE,

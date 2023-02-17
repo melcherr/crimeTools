@@ -130,11 +130,20 @@ plot_prevalence <- function(data,
                         var_name,
                         fill = list(proportion = 0,
                                     proportion_upp = 0,
-                                    n = 0))
+                                    n = 0)) %>%
+        dplyr::group_by(group_value) %>%
+        dplyr::arrange(group_label) %>%
+        dplyr::mutate(group_label = zoo::na.locf(group_label)) %>%
+        dplyr::group_by(var_name) %>%
+        dplyr::arrange(var_label) %>%
+        dplyr::mutate(var_label = zoo::na.locf(var_label)) %>%
+        dplyr::ungroup() %>%
+        dplyr::arrange(group_value)
+
+      srvy_data
 
       srt_levels_group <- unique(srvy_data[["group_value"]])
-      srt_labels_group <- unique(srvy_data[["group_label"]]) %>%
-        na.omit()
+      srt_labels_group <- unique(srvy_data[["group_label"]])
 
       min_group <- min(srvy_data[["group_value"]], na.rm = TRUE)
       max_group <- max(srvy_data[["group_value"]], na.rm = TRUE)

@@ -13,7 +13,14 @@ color <- list("1" = "#3e6487",
               "6" = c("#3e6487", "#829cb2", "#c7cdd1", "#f6d2c1", "#edad88", "#e36c33"),
               "conf_colors" = c('#3e6487', '#829cb2'))
 
-plot_prevalence(data = skisax_weighted, vars = q20_1a:q20_1g, group = q52, na_group = -88:-99, prop_values = 1, sort = "desc", legend = "caption")
+plot_prevalence(data = skisax_weighted,
+                vars = q20_1a:q20_1g,
+                group = q52,
+                grouping = "vars_by_group",
+                na_group = -88:-99,
+                prop_values = 1,
+                sort = "desc",
+                legend = "caption")
 
 plot_prevalence(data = skisax_weighted,
                 vars = q10a:q10h,

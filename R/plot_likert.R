@@ -291,7 +291,8 @@ plot_likert <- function(data,
         na.omit()
 
       srvy_data <- srvy_data %>%
-        tidyr::complete(data = ., var,
+        tidyr::complete(data = .,
+                        var,
                         value,
                         fill = list(n = 0, proportion = 0)) %>%
         dplyr::group_by(value) %>%
