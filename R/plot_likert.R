@@ -106,7 +106,7 @@ plot_likert <- function(data,
   }
 
 
-  if (!quo_is_null(group_enquo) & grouping == "group_by_vars") {
+  if (!quo_is_null(group_enquo) & grouping == "vars_by_group") {
 
     parameter <- as.list(match.call())
     parameter <- parameter[which(names(parameter) %nin% c("data", "group", "grouping"))[-1]]
@@ -145,7 +145,7 @@ plot_likert <- function(data,
 
                  })
 
-  } else if (stringr::str_detect(expr_text(expr({{vars}})), ":|,") & !quo_is_null(group_enquo) & grouping == "vars_by_group") {
+  } else if (stringr::str_detect(expr_text(expr({{vars}})), ":|,") & !quo_is_null(group_enquo) & grouping == "group_by_vars") {
 
     warning("Multiple 'vars' arguments in conjunction with 'group' is experimental. Use 'Map()' oder 'pmap' for listwise customization.")
 

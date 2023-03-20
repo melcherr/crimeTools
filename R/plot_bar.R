@@ -18,6 +18,7 @@ plot_bar <- function(data,
                      group = NULL,
                      text,
                      width = 0.75,
+                     position_dodge_width = 0.9,
                      bar_color = "#e36c33",
                      group_color = NULL,
                      crossbar_color = "#3e6487",
@@ -57,7 +58,7 @@ plot_bar <- function(data,
                stat = "identity",
                alpha = alpha,
                width = width,
-               position = position_dodge(width = 0.9)) +
+               position = position_dodge(width = position_dodge_width)) +
       geom_crossbar(aes(y = {{y}},
                         xmin = {{x}},
                         xmax = {{x}},
@@ -66,7 +67,7 @@ plot_bar <- function(data,
                         x = {{x}}),
                     width = width,
                     fatten = 2.5,
-                    position = position_dodge(width = 0.9),
+                    position = position_dodge(width = position_dodge_width),
                     show.legend = FALSE)
 
   } else {
@@ -78,7 +79,7 @@ plot_bar <- function(data,
                alpha = alpha,
                width = width,
                fill = bar_color,
-               position = position_dodge(width = 0.9)) +
+               position = position_dodge(width = position_dodge_width)) +
       geom_crossbar(aes(y = {{y}},
                         xmin = {{x}},
                         xmax = {{x}},
@@ -86,7 +87,7 @@ plot_bar <- function(data,
                     width = width,
                     fatten = 2.5,
                     color = crossbar_color,
-                    position = position_dodge(width = 0.9),
+                    position = position_dodge(width = position_dodge_width),
                     show.legend = FALSE)
 
   }
@@ -155,13 +156,13 @@ plot_bar <- function(data,
                         group = {{group}}),
                     width = 0.15,
                     color = conf_color,
-                    position = position_dodge(width = 0.9),
+                    position = position_dodge(width = position_dodge_width),
                     show.legend = FALSE) +
       geom_text(aes(y = {{y}},
                     x = {{xmax}} + nudge_x,
                     group = {{group}},
                     label = {{text}}),
-                position = position_dodge(width = 0.9),
+                position = position_dodge(width = position_dodge_width),
                 color = "black",
                 family = font_family)
 
@@ -186,7 +187,7 @@ plot_bar <- function(data,
                       x = {{x}} + nudge_x,
                       group = {{group}},
                       label = {{text}}),
-                  position = position_dodge(width = 0.9),
+                  position = position_dodge(width = position_dodge_width),
                   color = "black",
                   family = font_family)
 

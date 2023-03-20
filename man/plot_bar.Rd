@@ -13,6 +13,7 @@ plot_bar(
   group = NULL,
   text,
   width = 0.75,
+  position_dodge_width = 0.9,
   bar_color = "#e36c33",
   group_color = NULL,
   crossbar_color = "#3e6487",

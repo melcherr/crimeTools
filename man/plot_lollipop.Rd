@@ -16,6 +16,7 @@ plot_lollipop(
   limits = NULL,
   xlab = NULL,
   ylab = NULL,
+  position_dodge_width = 0.9,
   point_color = "#e36c33",
   point_size = 4,
   segment_color = "#3e6487",

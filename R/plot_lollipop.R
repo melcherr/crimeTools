@@ -21,6 +21,7 @@ plot_lollipop <- function(data,
                           limits = NULL,
                           xlab = NULL,
                           ylab = NULL,
+                          position_dodge_width = 0.9,
                           point_color = "#e36c33",
                           point_size = 4,
                           segment_color = "#3e6487",
@@ -58,13 +59,13 @@ plot_lollipop <- function(data,
                          group = {{group}}),
                      size = 1.5,
                      alpha = alpha,
-                     position = position_dodge(width = 0.9)) +
+                     position = position_dodge(width = position_dodge_width)) +
       geom_point(aes(x = {{x}},
                      y = {{y}},
                      color = {{group}},
                      group = {{group}}),
                  size = point_size,
-                 position = position_dodge(width = 0.9))
+                 position = position_dodge(width = position_dodge_width))
 
 
   } else {
@@ -90,7 +91,7 @@ plot_lollipop <- function(data,
                   label = {{text}}),
               fontface = fontface,
               family = font_family,
-              position = position_dodge(width = 0.9),
+              position = position_dodge(width = position_dodge_width),
               color = "black",
               size = 4) +
     scale_x_continuous(limits = limits,
