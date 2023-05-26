@@ -207,8 +207,10 @@ plot_model <- function(data,
             panel.grid.major.y = element_line(linewidth = 0.1, color = "gray90"),
             legend.position = legend_position,
             legend.text = element_text(size = outer_text_size),
-            strip.text = element_markdown(size = outer_text_size, hjust = 0),
-            strip.background = element_rect(fill = strip_color, colour = "transparent")) +
+            strip.text = ggtext::element_markdown(size = outer_text_size,
+                                                  hjust = 0),
+            strip.background = element_rect(fill = strip_color,
+                                            colour = "transparent")) +
       lemon::coord_capped_flip(ylim = ylim, bottom ='both') +
       xlab(xlab) + ylab(ylab) +
       labs(title = title,
