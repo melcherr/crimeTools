@@ -1,0 +1,828 @@
+# P A K E T E ----------------------------------------------------------------
+
+library(extrafont)
+library(tidyverse)
+library(ggtext)
+library(ggthemes)
+library(sjmisc)
+library(sjlabelled)
+library(survey)
+library(srvyr)
+library(rlang)
+library(openxlsx)
+library(devEMF)
+library(gstat)
+library(sf)
+library(parallel)
+library(cowplot)
+library(crimeTools)
+library(lme4)
+library(broom.mixed)
+library(ordinal)
+library(psych)
+library(mirt)
+library(ggridges)
+
+
+plot_density <- function(data, 
+                         x, 
+                         area_limits = NULL, 
+                         xlab = NULL, 
+                         ylab = NULL,
+                         title = NULL,
+                         subtitle = NULL) {
+  
+  g <- data %>% 
+    ggplot(data = ., aes(x = {{x}})) +
+    geom_density(fill = '#829cb2', 
+                 alpha = 0.6,
+                 color = '#3e6487') + 
+    geom_vline(xintercept = area_limits[[1]],
+               color = "darkred",
+               linetype = "dashed") +
+    scale_x_continuous(breaks = 1:5, 
+                       labels = c("1\nsehr gering", "2", "3", "4", "5\nsehr hoch")) +
+    scale_y_continuous(labels = scales::comma_format(big.mark = ".", decimal.mark = ",")) +
+    crimeTools:::theme_crimeTools() +
+    theme(axis.line.x.bottom = element_line(),
+          axis.line.y.left = element_line(),
+          axis.ticks.y.left = element_line(),
+          axis.text.y.left = element_text(size = 16),
+          axis.title = element_text(size = 16, face = "bold")) +
+    lemon::coord_capped_cart(bottom = "both", left = "both") +
+    xlab(xlab) +
+    ylab(ylab) + 
+    labs(title = title, subtitle = subtitle)
+  
+  if (!is.null(area_limits)) {
+    
+    area_prop <- 
+      data %>% 
+      mutate(in_area = if_else(between({{x}}, area_limits[[1]], area_limits[[2]]), 
+                               1, 
+                               0, 
+                               NA_real_)) %>% 
+      pull(in_area) %>% 
+      frq(show.na = FALSE) %>% 
+      as.data.frame() %>% 
+      filter(val == 1) %>% 
+      pull(raw.prc) %>% 
+      sprintf("%.1f", .) %>% 
+      str_replace("\\.", ",") %>% 
+      paste0(., "%")
+
+    g_build <- ggplot_build(g)
+    g_build <- g_build$data[[1]]
+    g_build <- g_build[between(g_build$x, left = area_limits[[1]], right = area_limits[[2]]),]
+
+    g + 
+      geom_area(data = g_build, aes(x = x, y = y), fill = "#f6d2c1", color = "#e36c33") +
+      geom_text(aes(x = mean(area_limits), 
+                    y = 0, 
+                    label = area_prop), 
+                nudge_y = 0.025,
+                size = 5)
+
+  } else g
+  
+}
+
+
+wrap_tidy <- function (model, conf.level = c(0.90, 0.95, 0.99)) {
+  
+  map(.x = conf.level,
+      function(x) {
+        
+        low <- parse_expr(paste0("conf.low_", x))
+        high <- parse_expr(paste0("conf.high_", x)) 
+        
+        if (inherits(model, "lmerMod")) {
+          
+          broom::tidy(model, conf.int = TRUE, conf.level = x) %>% 
+            rename({{low}} := 7, {{high}} := 8)
+          
+        } else {
+          
+          broom::tidy(model, conf.int = TRUE, conf.level = x) %>% 
+            rename({{low}} := 6, {{high}} := 7)
+          
+        }
+        
+      }) %>% 
+    reduce(left_join)
+  
+}
+
+
+standardize <- function(variable, type = "divide_by_sd", times = 2){
+  
+  if (type == "divide_by_sd") {
+    
+    (variable - mean(variable, na.rm = TRUE)) / (times * sd(variable, na.rm = TRUE))
+    
+  } else if (type == "normalize") {
+    
+    min <- min(variable , na.rm = TRUE)
+    max <- max(variable , na.rm = TRUE)
+    
+    if (min > 0) { 
+      
+      (variable - min) / ( max - min)
+      
+    }
+    
+    else {
+      
+      (variable + abs(min) ) / (max + abs(min) )
+      
+    }
+    
+  } else stop("'type' must take the values 'divide_by_sd' or 'normalize'" )
+  
+}
+
+plot_model <- function(data, 
+                       x,
+                       y, 
+                       group = NULL,
+                       ymin_90, 
+                       ymax_90,
+                       ymin_95, 
+                       ymax_95,
+                       ymin_99, 
+                       ymax_99, 
+                       facet_group_row = NULL,
+                       patchwork_group = NULL,
+                       shape_values = NULL,
+                       shape_sizes = NULL,
+                       conf_colors = c('#3e6487', '#829cb2', '#c0cdd8'),
+                       strip_color = "#fbede6",
+                       patchwork_color = "#f6d2c1",
+                       title = NULL,
+                       subtitle = NULL,
+                       caption = NULL,
+                       breaks = 5,
+                       ylab = "Regressionskoeffizienten", 
+                       xlab = "",
+                       xlabels,
+                       accuracy = 0.01,
+                       ylim = NULL,
+                       scales = "free_y",
+                       space ="free",
+                       guide_nrow = 3,
+                       guide_ncol = 2,
+                       legend_position = "bottom",
+                       panel_spacing = 0.5,
+                       font_family = "Arial",
+                       axis_text_size = 13,
+                       outer_text_size = 13,
+                       ...) {
+  
+  facet_group_row <- enquo(facet_group_row)
+  patchwork_group <- enquo(patchwork_group)
+  
+  if (!rlang::quo_is_null(patchwork_group)) {
+    
+    parameter <- as.list(match.call())
+    parameter <- parameter[which(names(parameter) %nin% c("data", "patchwork_group", "title", "subtitle"))[-1]]
+    
+    group_labels <- pull(data, {{patchwork_group}}) %>% 
+      unique()
+    
+    data_split <- data %>% group_split({{patchwork_group}})
+    
+    proportion <- map_dbl(data_split, ~nrow(.x))
+    
+    g_wrap <- 
+      data_split %>% 
+      purrr::map2(.x = ., 
+                  .y = group_labels,
+                  function(x, y) {
+                    
+                    parameter <- parameter %>%
+                      append(., list(data = x, 
+                                     title = y))
+                    
+                    expr(plot_model(!!!parameter)) %>% 
+                      eval_tidy(.)
+                    
+                  }) %>% 
+      map(.x = .,
+          ~.x +
+            theme(plot.title.position = "panel",
+                  plot.title = element_textbox_simple(
+                    size = 16,
+                    lineheight = 1,
+                    hjust = 0,
+                    fill = patchwork_color,
+                    padding = margin(5, 5, 5, 5),
+                    margin = margin(0, 0, 10, 0))))
+    
+    g_wrap[-length(group_labels)] <-
+      g_wrap[-length(group_labels)] %>%
+      map(.x = ., 
+          ~.x + 
+            theme(axis.title.x = element_blank(),
+                  axis.text.x.bottom = element_blank(),
+                  axis.ticks.x.bottom = element_blank(),
+                  axis.line.x.bottom = element_line(color = "transparent")))
+    
+    g_wrap %>% 
+      patchwork::wrap_plots(ncol = 1, 
+                            nrow = length(group_labels),
+                            heights = proportion/sum(proportion), 
+                            guides = "collect") +
+      patchwork::plot_annotation(title = title, 
+                                 subtitle = subtitle, 
+                                 caption = caption,
+                                 theme = theme(plot.title.position = "plot",
+                                               plot.title = element_text(size = 18, face = "bold"),
+                                               plot.subtitle = element_text(size = 16, 
+                                                                            margin = margin(0, 0, 20 , 0)),
+                                               plot.caption = element_textbox_simple(halign = 0,
+                                                                                     margin = margin(-90,0,0,0),
+                                                                                     padding = margin(5, 5, 5, 5),
+                                                                                     lineheight = 1.35,
+                                                                                     linetype = 1,
+                                                                                     linewidth = 1.25, 
+                                                                                     size = 12,
+                                                                                     hjust = 0,
+                                                                                     maxwidth = grid::unit(6, "cm"),
+                                                                                     box.color = "#f6d2c1",
+                                                                                     fill = "#fbede6",
+                                                                                     r = grid::unit(3, "pt")), 
+                                               plot.caption.position = "plot")) &
+      theme(legend.position = legend_position)
+    
+  } else {
+    
+    g <- ggplot(data = data) +
+      geom_hline(yintercept = 0, color = "darkred", linetype = "dashed") +
+      geom_linerange(aes(ymax = {{ymax_99}}, 
+                         ymin = {{ymin_99}}, 
+                         x = {{x}}, 
+                         color = "ci_99",
+                         alpha = "ci_99",
+                         group = {{group}}),
+                     position = position_dodge2(width = 0.6, reverse = TRUE),
+                     linewidth = 2,
+                     key_glyph = "path") +
+      geom_linerange(aes(x = {{x}}, 
+                         ymin = {{ymin_95}}, 
+                         ymax = {{ymax_95}}, 
+                         color = "ci_95",
+                         alpha = "ci_95",
+                         group = {{group}}), 
+                     position = position_dodge2(width = 0.6, reverse = TRUE),
+                     linewidth = 3, 
+                     key_glyph = "path") +
+      geom_linerange(aes(x = {{x}}, 
+                         ymin = {{ymin_90}}, 
+                         ymax = {{ymax_90}}, 
+                         color = "ci_90",
+                         alpha = "ci_90",
+                         group = {{group}}), 
+                     position = position_dodge2(width = 0.6, reverse = TRUE),
+                     linewidth = 4, 
+                     key_glyph = "path") +
+      geom_point(aes(x = {{x}}, y = {{y}}, 
+                     shape = {{group}}, 
+                     size = {{group}}), 
+                 position = position_dodge2(width = 0.6, reverse = TRUE), 
+                 fill = 'white', 
+                 color = "white",
+                 size = 3) +
+      scale_y_continuous(breaks = scales::pretty_breaks(breaks),
+                         labels = scales::comma_format(accuracy = accuracy,
+                                                       big.mark = ".",
+                                                       decimal.mark = ",", 
+                                                       ...)) +
+      scale_x_discrete("") +
+      scale_color_manual("", 
+                         values = c("ci_90" = conf_colors[[1]],
+                                    "ci_95" = conf_colors[[2]],
+                                    "ci_99" = conf_colors[[3]]), 
+                         labels = c("90%-Konfidenzintervall",
+                                    "95%-Konfidenzintervall",
+                                    "99%-Konfidenzintervall"),
+                         guide = guide_legend(ncol = guide_ncol, nrow = guide_nrow)) +
+      scale_alpha_manual("", values = c("ci_90" = 0.6,
+                                        "ci_95" = 0.6,
+                                        "ci_99" = 0.8), 
+                         labels = c("90%-Konfidenzintervall",
+                                    "95%-Konfidenzintervall",
+                                    "99%-Konfidenzintervall"),
+                         guide = guide_legend(ncol = guide_ncol, nrow = guide_nrow)) +
+      scale_size_manual("", 
+                        values = shape_sizes,
+                        guide = guide_legend(order = 1, ncol = guide_ncol, nrow = guide_nrow)) +
+      scale_shape_manual("", 
+                         values = shape_values,
+                         guide = guide_legend(order = 1, ncol = guide_ncol, nrow = guide_nrow, 
+                                              override.aes = list(color = conf_colors[[1]],
+                                                                  fill = "white", 
+                                                                  size = shape_sizes))) +
+      theme_tufte() +
+      theme(text = element_text(family = font_family),
+            axis.text.x.bottom = element_markdown(color = "black", size = axis_text_size),
+            axis.text.y.left = element_markdown(color = "black", size = axis_text_size),
+            axis.ticks.y = element_blank(),
+            axis.line = element_line(),
+            axis.line.y.left = element_blank(),
+            axis.title = element_text(size = outer_text_size),
+            plot.title = element_text(size = 18, face = "bold"),
+            panel.spacing = unit(panel_spacing, "lines"),
+            plot.subtitle = element_text(size = 16),
+            plot.title.position = "plot",
+            plot.margin = margin(0, 0 ,0 ,0),
+            panel.border = element_blank(),
+            panel.grid.major.x = element_line(linewidth = 0.1, color = "gray90"),
+            panel.grid.major.y = element_line(linewidth = 0.1, color = "gray90"),
+            legend.position = legend_position, 
+            legend.text = element_text(size = outer_text_size),
+            strip.text = element_markdown(size = outer_text_size, hjust = 0),
+            strip.background = element_rect(fill = strip_color, colour = "transparent")) +
+      lemon::coord_capped_flip(ylim = ylim, bottom ='both') +
+      xlab(xlab) + ylab(ylab) +
+      labs(title = title, 
+           subtitle = subtitle)
+    
+    if (!rlang::quo_is_null(facet_group_row)) {
+      
+      g + ggforce::facet_col(vars({{facet_group_row}}), 
+                             space = "free",
+                             scales = scales)
+    }
+    
+    else return(g)
+    
+  }
+  
+}
+
+get_fit <- function(model) {
+  
+  if ("clmm" %in% class(model)) {
+    
+    cluster <- model$dims[["q"]]
+    
+    icc_clmm <- round(performance::icc(model)[[1]], 3)
+    r2_conditional <- round(performance::r2(model)[[1]], 2) %>% 
+      unname()
+    r2_marginal <- round(performance::r2(model)[[2]], 2) %>% 
+      unname()
+    
+  } 
+  
+  else if ("lmerMod" %in% class(model)){
+    
+    cluster <- model@devcomp$dims[["q"]]
+    
+  } 
+  
+  n <- nobs(model)
+  
+  modellfit <- 
+    performance::model_performance(model) %>% 
+    as_tibble() %>% 
+    pivot_longer(cols = everything()) %>%
+    filter(name %in% c("AIC", "BIC", "ICC", "R2_conditional", "R2_marginal")) %>% 
+    mutate(name = case_when(name == "R2_conditional" ~ "R<sup>2</sup><sub>Konditional</sub>",
+                            name == "R2_marginal" ~ "R<sup>2</sup><sub>Marginal</sub>",
+                            TRUE ~ name),
+           value = if_else(name == "ICC", round(value, 3), round(value, 2)),
+           text = str_replace(paste0("**", name, "**", " = ", value), "\\.", ",")) %>% 
+    pull(text) %>% 
+    c(glue::glue("**Befragte** = ", n),
+      glue::glue("**Gemeindecluster** = ", cluster),
+      .)
+  
+  if ("clmm" %in% class(model)) {
+    
+    modellfit <- 
+      modellfit %>% 
+      c(.,
+        glue::glue("**R<sup>2</sup><sub>Konditional</sub>** = ", r2_conditional),
+        glue::glue("**R<sup>2</sup><sub>Marginal</sub>** = ", r2_marginal),
+        glue::glue("**ICC** = ", icc_clmm)
+      )
+    
+  } 
+  
+  modellfit %>% 
+    paste(collapse = "<br>")
+  
+}
+
+plot_mirt <- function(data, model, dim_name, legend_categories) {
+  
+  c_cluster <- makeCluster(detectCores())
+  
+  mirt_results <- clusterMap(c_cluster, function(data, model, dim_name, legend_categories){
+    
+    library(tidyverse)
+    library(ggthemes)
+    library(lemon)
+    library(sjmisc)
+    library(mirt)
+    
+    setOldClass(c("gg", "ggplot", "trellis", NULL))
+    
+    setClassUnion("SingleGroupClassOrNULL", members = c("SingleGroupClass", "NULL"))
+    setClassUnion("tblOrNULL", members = c("tbl", "NULL"))
+    setClassUnion("trellisOrNULL", members = c("trellis", "NULL"))
+    setClassUnion("ggOrNULL", members = c("gg", "NULL"))
+    
+    set_irtClass <- setClass(Class = "irtClass", 
+                             slots = c(model = "SingleGroupClassOrNULL",
+                                       fit_table = "tblOrNULL",
+                                       itemfit_plot = "ggOrNULL",
+                                       itemtrace_plot = "trellisOrNULL",
+                                       itemparameter_plot = "ggOrNULL"))
+    
+    compare_models <- function(data, 
+                               itemtype = "gpcm", 
+                               dim_name = "value",
+                               model, 
+                               legend_categories = NULL,
+                               xlim = NULL, 
+                               ylim = NULL) {
+      
+      model_irt <- mirt(data = data, itemtype = itemtype, model = model, SE = TRUE) 
+      
+      if ((ncol(data) > 3) & !is.double(model)) {
+        
+        fit_table <- anova(model_irt) %>%
+          bind_cols(M2(model_irt, type = "C2", calcNULL = FALSE)) %>%
+          bind_cols(model_irt@Data[c("N", "nitems")]) %>% 
+          mutate(model = dim_name) %>%
+          select(model, N, nitems, AIC, BIC, logLik, RMSEA, CFI, TLI) %>%
+          rename("Items" = "nitems") %>% 
+          pivot_longer(-model, names_to = "Fitindex") %>%
+          pivot_wider(names_from = model, values_from = value)
+        
+      } else {
+        
+        fit_table <- model_irt@Data[c("N", "nitems")] %>% 
+          append(model_irt@Fit[c("AIC", "BIC", "logLik", "RMSEA")]) %>% 
+          as_tibble_row() %>%
+          rename("Items" = "nitems") %>% 
+          pivot_longer(everything(), 
+                       names_to = "Fitindex",
+                       values_to = dim_name)
+        
+      }
+      
+      nudge <- max(itemfit(model_irt)[,2]) * 0.07
+      
+      itemfit_plot <-
+        itemfit(model_irt)[,1:2] %>%
+        ggplot(data = ., aes(y = reorder(item, S_X2), x = S_X2)) +
+        geom_bar(stat = "identity", alpha = 0.5, width = 0.6) +
+        geom_text(aes(label = sprintf(S_X2, fmt = "%.1f")),
+                  nudge_x = nudge,
+                  family = "sans") +
+        geom_crossbar(aes(xmin = S_X2, xmax = S_X2, y = reorder(item, S_X2)), width = 0.6) +
+        ylab("") + xlab(expression(paste("Generalisiertes S-", chi^2))) +
+        theme_tufte() +
+        theme(text = element_text(family = "sans"),
+              axis.line.x = element_line(),
+              axis.ticks.y = element_blank(),
+              axis.text = element_text(size = 12),
+              axis.title.x = element_text(size = 13),
+              axis.text.y = element_text(face = "bold"),
+              panel.grid.major.x = element_line(colour = "grey80"),
+              plot.title = element_text(face = "bold", size = 18)) +
+        coord_capped_cart(bottom = "both")
+      
+      
+      if (!is.double(model)) {
+        
+        itemtrace_plot <- plot(model_irt,
+                               type = "trace",
+                               main = "Charakteristikkurven der Itemkategorien (CCC)")
+        
+        itemtrace_plot$par.settings$strip.background$col <- "lightgrey"
+        itemtrace_plot$x.scales$alternating <- 3
+        itemtrace_plot$y.scales$alternating <- 3
+        itemtrace_plot$par.strip.text <- list("cex" = 1, "fontface" = "bold")
+        itemtrace_plot$legend <- list(bottom = itemtrace_plot$legend$right)
+        itemtrace_plot$legend$bottom$args$columns <- 5
+        itemtrace_plot$par.settings$layout.heights <- list(xlab.key.padding = 2)
+        
+        if (!is.null(legend_categories)) itemtrace_plot$legend$bottom$args$text <- legend_categories
+        
+        data <- coef(model_irt, IRTpars = TRUE) %>%
+          map_dfr(., ~as_tibble(t(.x), rownames = "coeff"), .id = "var") %>%
+          filter(var %in% colnames(model_irt@Data$data)) %>%
+          mutate(coeff = str_extract(string = coeff, "[:lower:]")) %>%
+          group_by(var, coeff) %>%
+          summarise(across(par:CI_97.5, ~mean(.))) %>%
+          pivot_wider(names_from = coeff, values_from = c(par, CI_2.5, CI_97.5))
+        
+        a_scale <- (max(data$par_a) - min(data$par_a)) * 0.02
+        b_scale <- (max(data$par_b) - min(data$par_b)) * 0.02
+        
+        nudge <- abs(max(data[,"CI_97.5_b"]) - min(data[,"CI_2.5_b"])) * 0.07
+        
+        itemparameter_plot <-
+          ggplot(data = data) +
+          geom_point(aes(x = par_a, y = par_b), color = "darkred") +
+          geom_text(aes(x = par_a, y = CI_97.5_b, label = var), nudge_y = nudge) +
+          geom_linerange(aes(xmin = par_a, xmax = CI_97.5_a, y = par_b), alpha = 0.5) +
+          geom_linerange(aes(ymin = par_b, ymax = CI_97.5_b, x = par_a), alpha = 0.5) +
+          geom_linerange(aes(xmin = CI_2.5_a, xmax = par_a, y = par_b), alpha = 0.5) +
+          geom_linerange(aes(ymin = CI_2.5_b, ymax = par_b, x = par_a), alpha = 0.5) +
+          scale_x_continuous(limits = xlim, breaks = scales::pretty_breaks(6)) +
+          scale_y_continuous(limits = ylim, breaks = scales::pretty_breaks(6)) +
+          ylab("Itemschwierigkeit") + xlab("Itemdiskriminanz") +
+          theme_tufte() +
+          theme(text = element_text(family = "sans"),
+                axis.text = element_text(size = 12),
+                axis.title = element_text(size = 13),
+                axis.line = element_line(),
+                plot.title = element_text(face = "bold", size = 18)) +
+          coord_capped_cart(bottom = "both", left = "both")
+        
+      } else {
+        
+        itemtrace_plot <- NULL
+        itemparameter_plot <- NULL
+        
+      }
+      
+      results <- set_irtClass(model = model_irt,
+                              fit_table = fit_table,
+                              itemfit_plot = itemfit_plot,
+                              itemtrace_plot = itemtrace_plot,
+                              itemparameter_plot = itemparameter_plot)
+      
+      return(results)
+      
+    }
+    
+    compare_models(data = na.omit(data), 
+                   model = model,
+                   dim_name = dim_name,
+                   legend_categories = legend_categories)
+    
+  },
+  data = data,
+  model = model,
+  dim_name = dim_name,
+  legend_categories = legend_categories)
+  
+  return(mirt_results)
+  
+  stopCluster(c_cluster)
+  
+}  
+
+plot_kriging <- function(data, 
+                         variogram_formula,
+                         krige_formula, 
+                         new_data, 
+                         return_variogram = FALSE, 
+                         contour = TRUE, 
+                         low = "#3e6487",
+                         high = "#F6D2C1", ...) {
+  
+  auto_fit <- automap::autofitVariogram(as.formula(variogram_formula), data)
+  
+  kriged <- krige(formula = as.formula(krige_formula), 
+                  locations = data, 
+                  newdata = new_data, 
+                  model = auto_fit$var_model) %>% 
+    as.data.frame()
+  
+  fill_limits <- range(kriged[["var1.pred"]])
+  
+  g <- ggplot(data = kriged, aes(x = coords.x1, y = coords.x2)) + 
+    geom_tile(aes(fill = var1.pred))
+  
+  if (contour) g <- g + stat_contour(aes(z = var1.pred), color = "black")
+  
+  g <- g + 
+    geom_point(data = as.data.frame(data),
+               aes(x = coords.x1, y = coords.x2)) +
+    coord_quickmap() +
+    scale_fill_gradient("",
+                        low = low, 
+                        high = high, 
+                        labels = scales::percent_format(scale = 1, big.mark = ".", decimal.mark = ",")) +
+    theme_void() + 
+    theme(legend.position = "right",
+          legend.key.height = unit(3.5, "cm"),
+          legend.key.width = unit(0.25, "cm"),
+          plot.title = element_text(size = 18, face = "bold"),
+          plot.subtitle = element_text(size = 16),
+          legend.text = element_text(size = 14)
+    ) +
+    labs(...)
+  
+  if (return_variogram) list("variogram" = plot(auto_fit), "map" = g)
+  
+  else g
+  
+}
+
+
+calculate_predicted_values <- function(model,
+                                       type = "link", 
+                                       newdata = NULL,
+                                       add_input = FALSE) {
+  
+  if (inherits(model, "lmerMod")) {
+    
+    data <- as.matrix(model@frame[,-c(1, length(model@frame))]) %>% 
+      cbind(rep(1, nrow(model@frame)), .)
+    
+    group <- as.character(model@frame[, length(model@frame)])
+    
+    beta <- lme4::fixef(model)
+    alpha <- lme4::ranef(model) %>% 
+      as.data.frame() %>% 
+      select(grp, condval) %>% 
+      mutate(grp = as.character(grp))
+    
+    Xb <- data %*% beta
+    
+    Xb %>%
+      cbind(., group) %>%
+      as.data.frame() %>%
+      setNames(c("pred", "grp")) %>%
+      left_join(alpha, by = "grp") %>% 
+      mutate(pred = as.numeric(pred) + condval)
+    
+  }
+  
+  if (inherits(model, "clmm")) {
+    
+    data <- as.matrix(model$model[,-c(1, length(model$model))])
+    
+    alpha <- model$alpha
+    
+    beta <- model$beta 
+    
+    
+    if (!is.null(newdata)) {
+      
+      names_newdata <- names(newdata)
+      names_model <- colnames(data)
+      
+      if (!any(names_newdata %in% names_model)) {
+        
+        stop("Column names in 'newdata' must match at least one column name in model formula")
+        
+      } 
+      
+      if (is.data.frame(newdata)) newdata <- as.matrix(newdata)
+      
+      beta <- beta[names_newdata]
+      
+      pred <- map_dfc(.x = alpha, 
+                      function(x) {
+                        
+                        Xb <- newdata %*% beta
+                        
+                        data.frame(pred = (x - Xb)) %>% 
+                          pull(pred)
+                        
+                      }) %>%
+        setNames(names(alpha))
+      
+    } 
+    
+    
+    else {
+      
+      group <- as.character(model$model[, length(model$model)])
+      
+      intercepts <- ordinal::ranef.clmm(model) %>% 
+        as.data.frame() %>%
+        rownames_to_column() %>%  
+        setNames(c("grp", "condval"))
+      
+      pred <- map_dfc(.x = alpha, 
+                      function(x) {
+                        
+                        Xb <- data %*% beta
+                        
+                        Xb %>%
+                          cbind(., group) %>%
+                          as.data.frame() %>%
+                          setNames(c("pred", "grp")) %>%
+                          left_join(intercepts, by = "grp") %>% 
+                          mutate(pred = x - condval - as.numeric(pred)) %>% 
+                          pull(pred)
+                        
+                      }) %>% 
+        setNames(names(alpha))
+      
+    }
+    
+    if (type == "prob") {
+      
+      pred <- pred %>% 
+        sapply(pnorm) %>% 
+        cbind(0, ., 1) %>% 
+        apply(1, function(x) {
+          
+          zoo::rollapplyr(x, 
+                          FUN = function(y) diff(y),
+                          width = 2)
+          
+        }) %>% 
+        t()
+      
+      colnames(pred) <- 1:(length(alpha) + 1)
+      
+      if (!is.null(newdata) & add_input) pred <- pred %>% bind_cols(newdata)
+      
+      return (pred)
+      
+    } else if (type == "link"){
+      
+      if (!is.null(newdata) & add_input) pred <- pred %>% bind_cols(newdata)
+      
+      return (pred)
+      
+    }
+    
+  }
+  
+}
+
+# D A T E N__U N D__M E S S U N G ----------------------------------------------------------------
+
+source("02_Skripte/03_Bericht_Kriminalitätsfurcht/01_Datenvorbereitung.R", encoding = "utf8")
+
+# A N A L Y S E N ----------------------------------------------------------------
+
+Analysis <- new.env()
+
+Analysis$font <- "Calibri"
+Analysis$weight <- "weight"
+
+Figures <- list()
+
+Analysis$color <- list("1" = "#3e6487",
+                       "2" = c("#e36c33", "#3e6487"),
+                       "3" = c('#3e6487', '#c7cdd1', '#e36c33'),
+                       "4" = c("#3e6487", "#c7cdd1", "#f6d2c1", "#e36c33"),
+                       "5" = c("#3e6487", "#829cb2", "#c7cdd1", "#edad88", "#e36c33"),
+                       "6" = c("#3e6487", "#829cb2", "#c7cdd1", "#f6d2c1", "#edad88", "#e36c33"),
+                       "conf_colors" = c('#3e6487', '#829cb2'))
+
+
+Analysis$alpha_global <- 0.6
+
+# * D E S K R I P T I V E__A N A L Y S E N  ================================
+
+source("02_Skripte/03_Bericht_Kriminalitätsfurcht/02_Deskription.R", encoding = "utf8")
+
+# * M U L T I V A R I A T E__A N A L Y S E N  ================================
+
+source("02_Skripte/03_Bericht_Kriminalitätsfurcht/03_Multivariate_Analysen.R", encoding = "utf8")
+
+#  G R A F I K E N__S P E I C H E R N ----------------------------------------------------------------
+
+Figures <- Figures %>% 
+  tibble(figure = .,
+         name = names(.)) %>%
+  left_join(read_csv2("03_Grafiken/03_Bericht_Kriminalitätsfurcht/02_Labels_und_Formate/Grafikformate.csv")) %>% 
+  rownames_to_column(var = "num") %>% 
+  mutate(name = paste(sprintf("%03d", as.numeric(num)), name, sep = "_"))
+
+pwalk(.l = list(plot = Figures$figure,
+                name = Figures$name,
+                width = Figures$width,
+                height = Figures$height),
+      function(plot, name, width, height) {
+        
+        if (str_detect(name, "Interpolation", negate = TRUE)) {
+          
+          ggsave(path = "03_Grafiken/03_Bericht_Kriminalitätsfurcht/01_Grafikdateien/emf",
+                 filename = paste0(name, ".emf"),
+                 plot = plot,
+                 device = {\(filename, ...) devEMF::emf(file = filename, ...)},
+                 scale = 1,
+                 width = width,
+                 height = height,
+                 limitsize = FALSE)
+          
+        }
+        
+        ggsave(path = "03_Grafiken/03_Bericht_Kriminalitätsfurcht/01_Grafikdateien/PNG",
+               filename = paste0(name, ".png"),
+               plot = plot,
+               device = png,
+               scale = 1,
+               width = width,
+               height = height,
+               limitsize = FALSE)
+        
+      })
+
+
+
