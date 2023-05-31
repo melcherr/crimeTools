@@ -1,26 +1,26 @@
 {
-    "id": "6F44B2EA",
+    "id": "C5E21CEA",
     "path": "~/Installationsordner/R_PackageDev/crimeTools/R/helper_functions.R",
     "project_path": "R/helper_functions.R",
     "type": "r_source",
     "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1685085394396.0,
+    "created": 1685524166522.0,
     "source_on_save": false,
     "relative_order": 11,
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "208,47",
+        "cursorPosition": "203,0",
         "scrollLine": "0"
     },
-    "folds": "238|45|352|4|\n",
-    "lastKnownWriteTime": 1685093759,
+    "folds": "4|36|13|0|\n15|55|24|0|\n26|26|31|0|\n33|28|85|0|\n95|43|154|0|\n163|49|202|0|\n",
+    "lastKnownWriteTime": 1685527628,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1685093759957,
+    "last_content_update": 1685527628747,
     "read_only": false,
     "read_only_alternatives": []
 }

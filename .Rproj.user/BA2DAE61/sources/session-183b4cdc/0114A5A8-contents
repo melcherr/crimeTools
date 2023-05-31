@@ -172,27 +172,35 @@ plot_model <- function(data,
                          labels = c("90%-Konfidenzintervall",
                                     "95%-Konfidenzintervall",
                                     "99%-Konfidenzintervall"),
-                         guide = guide_legend(ncol = guide_ncol, nrow = guide_nrow)) +
+                         guide = guide_legend(ncol = guide_ncol,
+                                              nrow = guide_nrow)) +
       scale_alpha_manual("", values = c("ci_90" = 0.6,
                                         "ci_95" = 0.6,
                                         "ci_99" = 0.8),
                          labels = c("90%-Konfidenzintervall",
                                     "95%-Konfidenzintervall",
                                     "99%-Konfidenzintervall"),
-                         guide = guide_legend(ncol = guide_ncol, nrow = guide_nrow)) +
+                         guide = guide_legend(ncol = guide_ncol,
+                                              nrow = guide_nrow)) +
       scale_size_manual("",
                         values = shape_sizes,
-                        guide = guide_legend(order = 1, ncol = guide_ncol, nrow = guide_nrow)) +
+                        guide = guide_legend(order = 1,
+                                             ncol = guide_ncol,
+                                             nrow = guide_nrow)) +
       scale_shape_manual("",
                          values = shape_values,
-                         guide = guide_legend(order = 1, ncol = guide_ncol, nrow = guide_nrow,
+                         guide = guide_legend(order = 1,
+                                              ncol = guide_ncol,
+                                              nrow = guide_nrow,
                                               override.aes = list(color = conf_colors[[1]],
                                                                   fill = "white",
                                                                   size = shape_sizes))) +
-      theme_crimeTools() +
+      theme_tufte() +
       theme(text = element_text(family = font_family),
-            axis.text.x.bottom = element_markdown(color = "black", size = axis_text_size),
-            axis.text.y.left = element_markdown(color = "black", size = axis_text_size),
+            axis.text.x.bottom = ggtext::element_markdown(color = "black",
+                                                  size = axis_text_size),
+            axis.text.y.left = ggtext::element_markdown(color = "black",
+                                                size = axis_text_size),
             axis.ticks.y = element_blank(),
             axis.line = element_line(),
             axis.line.y.left = element_blank(),
