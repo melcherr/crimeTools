@@ -2,6 +2,7 @@
 
 export(calculate_predicted_values)
 export(plot_bar)
+export(plot_idw)
 export(plot_likert)
 export(plot_lollipop)
 export(plot_mirt)

@@ -85,8 +85,6 @@ get_fit <- function(model) {
 
 }
 
-
-
 plot_density <- function(data,
                          x,
                          area_limits = NULL,
@@ -151,53 +149,5 @@ plot_density <- function(data,
                 size = 5)
 
   } else g
-
-}
-
-plot_kriging <- function(data,
-                         variogram_formula,
-                         krige_formula,
-                         new_data,
-                         return_variogram = FALSE,
-                         contour = TRUE,
-                         low = "#3e6487",
-                         high = "#F6D2C1", ...) {
-
-  auto_fit <- automap::autofitVariogram(as.formula(variogram_formula), data)
-
-  kriged <- gstat::krige(formula = as.formula(krige_formula),
-                         locations = data,
-                         newdata = new_data,
-                         model = auto_fit$var_model) %>%
-    as.data.frame()
-
-  fill_limits <- range(kriged[["var1.pred"]])
-
-  g <- ggplot(data = kriged, aes(x = coords.x1, y = coords.x2)) +
-    geom_tile(aes(fill = var1.pred))
-
-  if (contour) g <- g + stat_contour(aes(z = var1.pred), color = "black")
-
-  g <- g +
-    geom_point(data = as.data.frame(data),
-               aes(x = coords.x1, y = coords.x2)) +
-    coord_quickmap() +
-    scale_fill_gradient("",
-                        low = low,
-                        high = high,
-                        labels = scales::percent_format(scale = 1, big.mark = ".", decimal.mark = ",")) +
-    theme_void() +
-    theme(legend.position = "right",
-          legend.key.height = unit(3.5, "cm"),
-          legend.key.width = unit(0.25, "cm"),
-          plot.title = element_text(size = 18, face = "bold"),
-          plot.subtitle = element_text(size = 16),
-          legend.text = element_text(size = 14)
-    ) +
-    labs(...)
-
-  if (return_variogram) list("variogram" = plot(auto_fit), "map" = g)
-
-  else g
 
 }
