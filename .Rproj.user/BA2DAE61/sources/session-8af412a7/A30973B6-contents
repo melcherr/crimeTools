@@ -1,6 +1,6 @@
 library(testthat)
 
-skisax_weighted <- sjlabelled::read_stata("E:/Documents/Arbeitsordner/SIPS/SKiSAX/Datenanalysen/Daten/01_Befragungsdaten/infas_bereinigter_Rohdatensatz_7529SKiSAX_20221124.dta",
+skisax_weighted <- sjlabelled::read_stata("E:/Documents/Arbeitsordner/SIPS/SKiSAX/Datenanalysen/01_Daten/01_Befragungsdaten/infas_bereinigter_Rohdatensatz_7529SKiSAX_20221124.dta",
                                           convert.factors = FALSE,
                                           encoding = "utf8")
 skisax_weighted <- srvyr::as_survey_design(.data = skisax_weighted, ids = 1, weights = weight)

@@ -5,6 +5,7 @@ srvyr_crosstable <- function(data,
                              na_group = NULL,
                              fun = srvyr::survey_prop,
                              vartype = "ci",
+                             envir = rlang::caller_env(),
                              ...) {
 
   if (is.data.frame(data)) data <- srvyr::as_survey_design(.data = data, ids = 1)
@@ -19,8 +20,8 @@ srvyr_crosstable <- function(data,
     if (any(stringr::str_detect(sjlabelled::to_character(parameter$group), "\\{"))) {
 
       parameter <- purrr::map(.x = parameter,
-                              ~eval(.x, envir = parent.frame(n = 3)))
-
+                              ~eval(.x,
+                                    envir = envir))
     }
 
     vars_syms <- syms(colnames(srvyr::select(data, {{variables}})))
