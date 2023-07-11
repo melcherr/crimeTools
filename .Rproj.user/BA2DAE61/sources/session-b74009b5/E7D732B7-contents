@@ -33,6 +33,8 @@ plot_lollipop <- function(data,
                           legend_size = 12,
                           font_family = "",
                           axis_text_size = 12,
+                          text_label_align = 0.5,
+                          text_label_size = 4,
                           expand = expansion(mult = 0, add = 0),
                           scale_x_labels = scales::percent_format(scale = 100, big.mark = ".", decimal.mark = ","),
                           ...) {
@@ -92,8 +94,9 @@ plot_lollipop <- function(data,
               fontface = fontface,
               family = font_family,
               position = position_dodge(width = position_dodge_width),
+              hjust = text_label_align,
               color = "black",
-              size = 4) +
+              size = text_label_size) +
     scale_x_continuous(limits = limits,
                        expand = expand,
                        labels = scale_x_labels) +

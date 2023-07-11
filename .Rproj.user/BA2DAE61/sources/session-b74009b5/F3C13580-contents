@@ -32,6 +32,8 @@ plot_bar <- function(data,
                      ylab = NULL,
                      nudge_x = 0.035,
                      axis_text_size = 12,
+                     text_label_size = 4,
+                     text_label_align = 0.5,
                      legend = "standard",
                      legend_size = 12,
                      limits = NULL,
@@ -164,6 +166,8 @@ plot_bar <- function(data,
                     label = {{text}}),
                 position = position_dodge(width = position_dodge_width),
                 color = "black",
+                size = text_label_size,
+                hjust = text_label_align,
                 family = font_family)
 
     if (is.null(limits)) limits <- c(0, (max(dplyr::pull(data, {{xmax}})) + nudge_x) * 1.02)
@@ -189,6 +193,8 @@ plot_bar <- function(data,
                       label = {{text}}),
                   position = position_dodge(width = position_dodge_width),
                   color = "black",
+                  size = text_label_size,
+                  hjust = text_label_align,
                   family = font_family)
 
   }

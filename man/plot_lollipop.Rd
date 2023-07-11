@@ -28,6 +28,8 @@ plot_lollipop(
   legend_size = 12,
   font_family = "",
   axis_text_size = 12,
+  text_label_align = 0.5,
+  text_label_size = 4,
   expand = expansion(mult = 0, add = 0),
   scale_x_labels = scales::percent_format(scale = 100, big.mark = ".", decimal.mark =
     ","),

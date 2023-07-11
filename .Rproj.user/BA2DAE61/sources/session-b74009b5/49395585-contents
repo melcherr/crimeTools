@@ -83,7 +83,7 @@ plot_prevalence <- function(data,
 
                     parameter <- parameter %>%
                       append(., list(data = x,
-                                     title = y))
+                                     subtitle = y))
 
                     expr(plot_prevalence(!!!parameter)) %>%
                       eval_tidy(.)

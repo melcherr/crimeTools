@@ -24,6 +24,7 @@ crimeTools::plot_likert(data = skisax_weighted,
                         text_position = "outside_colored",
                         alpha = 0.6,
                         sort = FALSE,
+                        legend.position = "bottom",
                         show_n = TRUE,
                         na_drop = TRUE)
 

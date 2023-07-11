@@ -27,6 +27,8 @@ plot_bar(
   ylab = NULL,
   nudge_x = 0.035,
   axis_text_size = 12,
+  text_label_size = 4,
+  text_label_align = 0.5,
   legend = "standard",
   legend_size = 12,
   limits = NULL,

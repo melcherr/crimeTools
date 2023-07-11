@@ -138,7 +138,7 @@ plot_likert <- function(data,
 
                    parameter <- parameter %>%
                      append(., list(data = x,
-                                    title = y))
+                                    subtitle = y))
 
                    expr(plot_likert(!!!parameter)) %>%
                      eval_tidy(.)
@@ -165,7 +165,7 @@ plot_likert <- function(data,
 
                   parameter <- parameter %>%
                     append(., list(vars = x,
-                                   title = y))
+                                   subtitle = y))
 
                   expr(plot_likert(!!!parameter)) %>%
                     eval_tidy(.)
