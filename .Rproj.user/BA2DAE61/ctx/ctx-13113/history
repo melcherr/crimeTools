@@ -1,0 +1,512 @@
+grouping = "vars_by_group",
+grouping_title = TRUE,
+na_values = -88:-99,
+na_group = -88:-99,
+text_position = "outside_colored",
+alpha = 0.6,
+sort = FALSE,
+show_n = TRUE,
+na_drop = TRUE,
+subtitle = TRUE)
+crimeTools::plot_likert(data = skisax_weighted,
+vars = q10a:q10m,
+group = q43,
+bar_color_manual = color$`5`,
+grouping = "group_by_vars",
+grouping_title = TRUE,
+na_values = -88:-99,
+na_group = -88:-99,
+text_position = "outside_colored",
+alpha = 0.6,
+sort = FALSE,
+show_n = TRUE,
+na_drop = TRUE)
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+crimeTools::plot_model()
+?krige
+?as_tibble_row
+mirt::itemfit
+dplyr::colnames
+roxygen2::roxygenise()
+roxygen2::roxygenise()
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+detectCores
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+element_textbox_simple
+?element_textbox_simple
+?element_textbox_simple()
+??element_textbox_simple()
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+library(crimeTools)
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+?plot_mirt
+roxygen2::roxygenise()
+roxygen2::roxygenise()
+library(crimeTools)
+?setClassUnion
+?plot_mirt
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+library(crimeTools)
+devtools::document()
+library(crimeTools)
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+?sjlabelled::as_factor()
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+sys.nframe()
+?sys.nframe()
+test <- function() sys.nframe()
+test()
+test2 <- function() test
+test2()
+test2
+test2()
+test2(2)
+test2 <- function(2) test
+test2 <- function(x) test
+test2()
+map(.x = 1:2, ~test())
+purrr::map(.x = 1:2, ~test())
+srvyr_crosstable <- function(data,
+variables,
+group,
+na_values = NULL,
+na_group = NULL,
+fun = srvyr::survey_prop,
+vartype = "ci",
+...) {
+if (is.data.frame(data)) data <- srvyr::as_survey_design(.data = data, ids = 1)
+group <- enquo(group)
+if (stringr::str_detect(expr_text(expr({{variables}})), ":|,") & !quo_is_null(group)) {
+parameter <- as.list(match.call())
+parameter <- parameter[which(names(parameter) %nin% c("variables"))[-1]]
+if (any(stringr::str_detect(sjlabelled::to_character(parameter$group), "\\{"))) {
+parameter <- purrr::map(.x = parameter,
+~eval(.x, envir = sys.nframe()))
+}
+vars_syms <- syms(colnames(srvyr::select(data, {{variables}})))
+names(vars_syms) <- sjlabelled::get_label(srvyr::select(data, {{variables}}))
+purrr::map_dfr(.x = vars_syms,
+function(x) {
+parameter <- parameter %>%
+append(., list(variables = x))
+expr(srvyr_crosstable(!!!parameter)) %>%
+eval_tidy(.)
+})
+} else {
+data <- data %>%
+srvyr::select({{variables}}, {{group}})
+group_name <-  sjlabelled::get_label(data$variables[[1]])
+value_labels <- sjlabelled::get_labels(data$variables, values = "n")
+data %>%
+srvyr::mutate({{variables}} := ifelse({{variables}} %in% na_values,
+NA_real_,
+{{variables}}),
+{{group}} := ifelse({{group}} %in% na_group,
+NA_real_,
+{{group}})) %>%
+na.omit() %>%
+srvyr::group_by({{group}}, {{variables}}) %>%
+srvyr::summarise(proportion = {{fun}}(vartype),
+n = srvyr::survey_total()) %>%
+srvyr::ungroup() %>%
+dplyr::mutate({{group}} := sjlabelled::set_labels(x = {{group}},
+labels = value_labels[[2]],
+drop.na = TRUE),
+{{variables}} := sjlabelled::set_labels(x = {{variables}},
+labels = value_labels[[1]],
+drop.na = TRUE),
+n = round(n, 0),
+group_label = sjlabelled::to_character({{group}})) %>%
+sjlabelled::drop_labels() %>%
+dplyr::rename(var_value = {{variables}},
+group_value = {{group}}) %>%
+dplyr::mutate(var_label = group_name,
+var_name = as_name(quo({{variables}})))
+}
+}
+skisax_weighted <- sjlabelled::read_stata("E:/Documents/Arbeitsordner/SIPS/SKiSAX/Datenanalysen/Daten/01_Befragungsdaten/infas_bereinigter_Rohdatensatz_7529SKiSAX_20221124.dta",
+convert.factors = FALSE,
+encoding = "utf8")
+skisax_weighted <- sjlabelled::read_stata("E:/Documents/Arbeitsordner/SIPS/SKiSAX/Datenanalysen/01_Daten/01_Befragungsdaten/infas_bereinigter_Rohdatensatz_7529SKiSAX_20221124.dta",
+convert.factors = FALSE,
+encoding = "utf8")
+skisax_weighted <- sjlabelled::read_stata("E:/Documents/Arbeitsordner/SIPS/SKiSAX/Datenanalysen/01_Daten/01_Befragungsdaten/infas_bereinigter_Rohdatensatz_7529SKiSAX_20221124.dta",
+convert.factors = FALSE,
+encoding = "utf8")
+srvyr_crosstable(data = skisax_weighted, variables = q10a:q10e)
+library(rlang)
+srvyr_crosstable(data = skisax_weighted, variables = q10a:q10e)
+library(crimeTools)
+srvyr_crosstable(data = skisax_weighted, variables = q10a:q10e)
+`%nin%` <- function(x, y) !match(x, y, nomatch = FALSE)
+srvyr_crosstable(data = skisax_weighted, variables = q10a:q10e)
+library(dplyr)
+srvyr_crosstable(data = skisax_weighted, variables = q10a:q10e)
+rlang::last_trace()
+srvyr_crosstable(data = skisax_weighted, variables = q10a)
+rlang::last_trace(drop = FALSE)
+source("~/Installationsordner/R_PackageDev/crimeTools/R/srvyr_crosstable.R", echo=TRUE)
+srvyr_crosstable(data = skisax_weighted, variables = q10a)
+roxygen2::roxygenise()
+devtools::document()
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+parent.frame()
+parent.frame(2)
+parent.frame(3)
+rlang::caller_env(2)
+rlang::caller_env(1)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+sys.frame()
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+library(crimeTools)
+roxygen2::roxygenise()
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+library(crimeTools)
+?parent.frame()
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+devtools::document()
+roxygen2::roxygenise()
+library(crimeTools)
+library(crimeTools)
+call_stack()
+rlang::call_stack()
+rlang::call_stack()
+rlang::env_stack()
+devtools::document()
+roxygen2::roxygenise()
+library(crimeTools)
+library(crimeTools)
+library(crimeTools)
+library(crimeTools)
+env()
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+library(crimeTools)
+source("~/Installationsordner/R_PackageDev/crimeTools/R/plot_prevalence.R", echo=TRUE)
+library(crimeTools)
+library(crimeTools)
+library(crimeTools)
+library(crimeTools)
+library(crimeTools)
+library(crimeTools)
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+library(crimeTools)
+devtools::document()
+library(crimeTools)
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+devtools::document()
+roxygen2::roxygenise()
+library(crimeTools)
+library(testthat)
+skisax_weighted <- sjlabelled::read_stata("E:/Documents/Arbeitsordner/SIPS/SKiSAX/Datenanalysen/01_Daten/01_Befragungsdaten/infas_bereinigter_Rohdatensatz_7529SKiSAX_20221124.dta",
+convert.factors = FALSE,
+encoding = "utf8")
+skisax_weighted <- srvyr::as_survey_design(.data = skisax_weighted, ids = 1, weights = weight)
+color <- list("1" = "#3e6487",
+"2" = c("#e36c33", "#3e6487"),
+"3" = c('#3e6487', '#c7cdd1', '#e36c33'),
+"4" = c("#3e6487", "#c7cdd1", "#f6d2c1", "#e36c33"),
+"5" = c("#3e6487", "#829cb2", "#c7cdd1", "#edad88", "#e36c33"),
+"6" = c("#3e6487", "#829cb2", "#c7cdd1", "#f6d2c1", "#edad88", "#e36c33"),
+"conf_colors" = c('#3e6487', '#829cb2'))
+crimeTools::plot_likert(data = skisax_weighted,
+vars = q10a:q10m,
+group = q43,
+bar_color_manual = color$`5`,
+grouping = "group_by_vars",
+grouping_title = TRUE,
+na_values = -88:-99,
+na_group = -88:-99,
+text_position = "outside_colored",
+alpha = 0.6,
+sort = FALSE,
+show_n = TRUE,
+na_drop = TRUE)
+devtools::document()
+roxygen2::roxygenise()
+library(crimeTools)
+crimeTools::plot_likert(data = skisax_weighted,
+vars = q10a:q10m,
+group = q43,
+bar_color_manual = color$`5`,
+grouping = "group_by_vars",
+grouping_title = TRUE,
+na_values = -88:-99,
+na_group = -88:-99,
+text_position = "outside_colored",
+alpha = 0.6,
+sort = FALSE,
+show_n = TRUE,
+na_drop = TRUE)
+crimeTools::plot_likert(data = skisax_weighted,
+vars = q10a:q10m,
+group = q43,
+bar_color_manual = color$`5`,
+grouping = "group_by_vars",
+grouping_title = TRUE,
+na_values = -88:-99,
+na_group = -88:-99,
+text_position = "outside_colored",
+alpha = 0.6,
+sort = FALSE,
+legend.position = "bottom",
+show_n = TRUE,
+na_drop = TRUE)
+crimeTools::plot_likert(data = skisax_weighted,
+vars = q10a:q10m,
+group = q43,
+bar_color_manual = color$`5`,
+grouping = "group_by_vars",
+grouping_title = TRUE,
+na_values = -88:-99,
+na_group = -88:-99,
+text_position = "outside_colored",
+alpha = 0.6,
+sort = FALSE,
+show_n = TRUE,
+na_drop = TRUE) +
+theme(legend.position = "left")
+crimeTools::plot_likert(data = skisax_weighted,
+vars = q10a:q10m,
+group = q43,
+bar_color_manual = color$`5`,
+grouping = "group_by_vars",
+grouping_title = TRUE,
+na_values = -88:-99,
+na_group = -88:-99,
+text_position = "outside_colored",
+alpha = 0.6,
+sort = FALSE,
+show_n = TRUE,
+na_drop = TRUE) +
+ggplot2::theme(legend.position = "left")
+crimeTools::plot_likert(data = skisax_weighted,
+vars = q10a:q10m,
+bar_color_manual = color$`5`,
+grouping = "group_by_vars",
+grouping_title = TRUE,
+na_values = -88:-99,
+na_group = -88:-99,
+text_position = "outside_colored",
+alpha = 0.6,
+sort = FALSE,
+show_n = TRUE,
+na_drop = TRUE) +
+ggplot2::theme(legend.position = "left")
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+skisax_weighted <- sjlabelled::read_stata("E:/Documents/Arbeitsordner/SIPS/SKiSAX/Datenanalysen/Daten/01_Befragungsdaten/infas_bereinigter_Rohdatensatz_7529SKiSAX_20221124.dta",
+convert.factors = FALSE,
+encoding = "utf8")
+skisax_weighted <- sjlabelled::read_stata("E:/Documents/Arbeitsordner/SIPS/SKiSAX/Datenanalysen/01_Daten/01_Befragungsdaten/infas_bereinigter_Rohdatensatz_7529SKiSAX_20221124.dta",
+convert.factors = FALSE,
+encoding = "utf8")
+skisax_weighted <- srvyr::as_survey_design(.data = skisax_weighted, ids = 1, weights = weight)
+color <- list("1" = "#3e6487",
+"2" = c("#e36c33", "#3e6487"),
+"3" = c('#3e6487', '#c7cdd1', '#e36c33'),
+"4" = c("#3e6487", "#c7cdd1", "#f6d2c1", "#e36c33"),
+"5" = c("#3e6487", "#829cb2", "#c7cdd1", "#edad88", "#e36c33"),
+"6" = c("#3e6487", "#829cb2", "#c7cdd1", "#f6d2c1", "#edad88", "#e36c33"),
+"conf_colors" = c('#3e6487', '#829cb2'))
+plot_prevalence(data = skisax_weighted,
+vars = q20_1a:q20_1g,
+group = q52,
+grouping = "vars_by_group",
+na_group = -88:-99,
+prop_values = 1,
+sort = "desc",
+legend = "caption")
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+library(testthat)
+skisax_weighted <- sjlabelled::read_stata("E:/Documents/Arbeitsordner/SIPS/SKiSAX/Datenanalysen/01_Daten/01_Befragungsdaten/infas_bereinigter_Rohdatensatz_7529SKiSAX_20221124.dta",
+convert.factors = FALSE,
+encoding = "utf8")
+skisax_weighted <- srvyr::as_survey_design(.data = skisax_weighted, ids = 1, weights = weight)
+color <- list("1" = "#3e6487",
+"2" = c("#e36c33", "#3e6487"),
+"3" = c('#3e6487', '#c7cdd1', '#e36c33'),
+"4" = c("#3e6487", "#c7cdd1", "#f6d2c1", "#e36c33"),
+"5" = c("#3e6487", "#829cb2", "#c7cdd1", "#edad88", "#e36c33"),
+"6" = c("#3e6487", "#829cb2", "#c7cdd1", "#f6d2c1", "#edad88", "#e36c33"),
+"conf_colors" = c('#3e6487', '#829cb2'))
+plot_prevalence(data = skisax_weighted,
+vars = q20_1a:q20_1g,
+group = q52,
+grouping = "vars_by_group",
+na_group = -88:-99,
+prop_values = 1,
+sort = "desc",
+legend = "caption")
+plot_prevalence(data = skisax_weighted,
+vars = q20_1a:q20_1g,
+group = q52,
+grouping = "vars_by_group",
+na_group = -88:-99,
+prop_values = 1,
+sort = "desc",
+text_label_align = "right",
+legend = "caption")
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+roxygen2::roxygenise()
+devtools::document()
+library(crimeTools)
+devtools::document()
+roxygen2::roxygenise()
+library(crimeTools)
+devtools::document()
+roxygen2::roxygenise()
+library(crimeTools)
+devtools::document()
+roxygen2::roxygenise()
+library(crimeTools)
+devtools::document()
+roxygen2::roxygenise()
+library(crimeTools)
+devtools::document()
+roxygen2::roxygenise()
