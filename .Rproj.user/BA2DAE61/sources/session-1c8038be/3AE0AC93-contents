@@ -24,6 +24,8 @@ plot_density <- function(data,
                          scale_y_labels = waiver(),
                          scale = 1.5,
                          alpha = 1,
+                         fill = "#3e6487",
+                         area_fill = "#e36c33",
                          group_color = NULL) {
 
   if (legend %nin% c("standard", "caption", "none")) {
@@ -41,15 +43,75 @@ plot_density <- function(data,
       g <- data %>%
         ggplot(data = .) +
         geom_density(aes(x = {{x}}),
-                     fill = '#829cb2',
+                     fill = fill,
                      alpha = alpha,
-                     color = '#3e6487')
+                     color = fill)
+
+
+      if (!is.null(area_limits) & quo_is_null(group_enquo)) {
+
+        min_area <- data %>%
+          pull({{x}}) %>%
+          min(., na.rm = TRUE)
+
+        area_prop <-
+          purrr::map(.x = list(right_area_data = area_limits,
+                               left_area_data = c(min_area,
+                                                  area_limits[[1]])),
+                     function(lim) {
+
+                       g_build <- ggplot_build(g)
+                       g_build <- g_build$data[[1]]
+                       g_build <- g_build[between(g_build$x,
+                                                  left = lim[[1]],
+                                                  right = lim[[2]]),]
+
+                       g_build
+
+                     })
+
+        left_area_text <-
+          data %>%
+          dplyr::mutate(in_area = dplyr::if_else(dplyr::between({{x}},
+                                                                area_limits[[1]],
+                                                                area_limits[[2]]),
+                                                 1,
+                                                 0,
+                                                 NA_real_)) %>%
+          dplyr::pull(in_area) %>%
+          sjmisc::frq(show.na = FALSE) %>%
+          as.data.frame() %>%
+          dplyr::filter(val == 1) %>%
+          dplyr::pull(raw.prc) %>%
+          sprintf("%.1f", .) %>%
+          stringr::str_replace("\\.", ",") %>%
+          paste0(., "%")
+
+        g <- ggplot() +
+          geom_area(data = area_prop[["left_area_data"]],
+                    aes(x = x, y = y),
+                    fill = fill,
+                    color = fill,
+                    alpha = alpha) +
+          geom_area(data = area_prop[["right_area_data"]],
+                    aes(x = x, y = y),
+                    fill = area_fill,
+                    color = area_fill,
+                    alpha = alpha) +
+          geom_text(aes(x = mean(area_limits),
+                        y = 0,
+                        label = left_area_text),
+                    nudge_y = 0.025,
+                    size = 5)
+
+      }
 
     } else {
 
-      data <- data %>% mutate({{group}} := sjlabelled::as_label({{group}},
-                                                                drop.na = TRUE,
-                                                                drop.levels = TRUE))
+      data <- data %>%
+        mutate({{group}} := sjlabelled::as_label({{group}},
+                                                 drop.na = TRUE,
+                                                 drop.levels = TRUE))
 
       g <- data %>%
         ggplot(data = .) +
@@ -58,6 +120,34 @@ plot_density <- function(data,
                          color = {{group}},
                          fill = {{group}}),
                      alpha = alpha)
+
+      if (is.null(group_color)) {
+
+        g <- g +
+          scale_fill_ordinal("") +
+          scale_color_ordinal("")
+
+        group_color <- ggplot_build(g)
+        group_color <- unique(group_color$data[[1]]["fill"])[[1]]
+
+      } else if (!is.null(group_color)) {
+
+        g <- g +
+          scale_fill_manual("", values = group_color) +
+          scale_color_manual("", values = group_color)
+
+      }
+
+      if (legend == "caption") {
+
+        labels <- levels(pull(data, {{group}}))
+
+        g <- g +
+          labs(caption = glue::glue_collapse(x = glue::glue('<span style="color:{group_color}">{labels}</span>'),
+                                             sep = "   <span style='color:grey80'>|</span>   ")) +
+          theme(legend.position = "none")
+
+      } else if (legend == "none")  g <- g + theme(legend.position = "none")
 
     }
 
@@ -77,75 +167,10 @@ plot_density <- function(data,
       lemon::coord_capped_cart(bottom = "both", left = "both") +
       xlab(xlab) +
       ylab(ylab) +
-      labs(title = title, subtitle = subtitle) +
+      labs(title = title,
+           subtitle = subtitle) +
       guides(color = guide_legend(byrow = TRUE),
              fill = guide_legend(byrow = TRUE))
-
-    if (is.null(group_color)) {
-
-      g <- g +
-        scale_fill_ordinal("") +
-        scale_color_ordinal("")
-
-      group_color <- ggplot_build(g)
-      group_color <- unique(group_color$data[[1]]["fill"])[[1]]
-
-    } else if (!is.null(group_color)) {
-
-      g <- g +
-        scale_fill_manual("", values = group_color) +
-        scale_color_manual("", values = group_color)
-
-    }
-
-    if (legend == "caption") {
-
-      labels <- levels(pull(data, {{group}}))
-
-      g <- g +
-        labs(caption = glue::glue_collapse(x = glue::glue('<span style="color:{group_color}">{labels}</span>'),
-                                           sep = "   <span style='color:grey80'>|</span>   ")) +
-        theme(legend.position = "none")
-
-    } else if (legend == "none")  g <- g + theme(legend.position = "none")
-
-
-    if (!is.null(area_limits) & quo_is_null(group_enquo)) {
-
-      area_prop <-
-        data %>%
-        dplyr::mutate(in_area = dplyr::if_else(dplyr::between({{x}},
-                                                              area_limits[[1]],
-                                                              area_limits[[2]]),
-                                               1,
-                                               0,
-                                               NA_real_)) %>%
-        dplyr::pull(in_area) %>%
-        sjmisc::frq(show.na = FALSE) %>%
-        as.data.frame() %>%
-        dplyr::filter(val == 1) %>%
-        dplyr::pull(raw.prc) %>%
-        sprintf("%.1f", .) %>%
-        stringr::str_replace("\\.", ",") %>%
-        paste0(., "%")
-
-      g_build <- ggplot_build(g)
-      g_build <- g_build$data[[1]]
-      g_build <- g_build[between(g_build$x,
-                                 left = area_limits[[1]],
-                                 right = area_limits[[2]]),]
-
-      g +
-        geom_area(data = g_build, aes(x = x, y = y),
-                  fill = "#f6d2c1",
-                  color = "#e36c33") +
-        geom_text(aes(x = mean(area_limits),
-                      y = 0,
-                      label = area_prop),
-                  nudge_y = 0.025,
-                  size = 5)
-
-    } else g
 
   } else {
 

@@ -21,6 +21,8 @@ plot_density(
   scale_y_labels = waiver(),
   scale = 1.5,
   alpha = 1,
+  fill = "#3e6487",
+  area_fill = "#e36c33",
   group_color = NULL
 )
 }

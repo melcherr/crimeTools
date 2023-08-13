@@ -9,7 +9,9 @@ split_formula <- function(formula) {
     unlist %>%
     stringr::str_remove_all("\\(\\||\\)") %>%
     stringr::str_subset("\\*|\\(", negate = TRUE) %>%
-    stringr::str_subset("^[0-9]*$", negate = TRUE)
+    stringr::str_subset("^[0-9]*$", negate = TRUE) %>%
+    stringr::str_trim() %>%
+    unique()
 
 }
 
