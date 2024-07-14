@@ -1,4 +1,5 @@
 library(testthat)
+library(crimeTools)
 
 skisax_weighted <- sjlabelled::read_stata("E:/Documents/Arbeitsordner/SIPS/SKiSAX/Datenanalysen/01_Daten/01_Befragungsdaten/infas_bereinigter_Rohdatensatz_7529SKiSAX_20221124.dta",
                                           convert.factors = FALSE,
@@ -16,7 +17,7 @@ color <- list("1" = "#3e6487",
 plot_prevalence(data = skisax_weighted,
                 vars = q20_1a:q20_1g,
                 group = q52,
-                grouping = "vars_by_group",
+                grouping = "group_by_vars",
                 na_group = -88:-99,
                 prop_values = 1,
                 sort = "desc",

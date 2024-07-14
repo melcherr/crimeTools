@@ -2,18 +2,18 @@ to_string_pct <- function(x, dec = "0", fac = 1) paste0(stringr::str_replace(spr
 
 `%nin%` <- function(x, y) !match(x, y, nomatch = FALSE)
 
-split_formula <- function(formula) {
+split_formula <-
+  function(formula) {
 
-  stringr::str_split(formula,
-            pattern = " \\+ | \\~ |\\|") %>%
-    unlist %>%
-    stringr::str_remove_all("\\(\\||\\)") %>%
-    stringr::str_subset("\\*|\\(", negate = TRUE) %>%
-    stringr::str_subset("^[0-9]*$", negate = TRUE) %>%
-    stringr::str_trim() %>%
-    unique()
+      stringr::str_split(formula, pattern = "\\+| \\~ |\\||\\=~|\n|\\*|\\:=") %>%
+        unlist %>%
+        stringr::str_remove_all("\\(\\||\\)|\\s") %>%
+        stringr::str_subset("\\*|\\(", negate = TRUE) %>%
+        stringr::str_subset("^[0-9]*$", negate = TRUE) %>%
+        unique()
 
-}
+  }
+
 
 min_calc <- function(x, method = mean, min_valid = 3) {
 
@@ -151,5 +151,50 @@ plot_density <- function(data,
                 size = 5)
 
   } else g
+
+}
+
+get_loadings <- function(x, names) {
+
+  if (!all(class(x) %in% c("fa", "psych"))) {
+
+    stop("x must be an object of class 'fa'")
+
+  }
+
+  unclass(x[["loadings"]]) %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column() %>%
+    dplyr::bind_cols("h2" = x[["communalities"]],
+                     "u2" = x[["uniquenesses"]],
+                     "com" = x[["complexity"]]) %>%
+    dplyr::bind_rows(x[["Vaccounted"]] %>%
+                       as.data.frame() %>%
+                       tibble::rownames_to_column()) %>%
+    dplyr::left_join(names, "rowname")
+
+}
+
+get_summary <- function(data, vars, w = NULL) {
+
+  data %>%
+    dplyr::select({{vars}}, {{w}}) %>%
+    dplyr::mutate(dplyr::across({{vars}}, ~ifelse(. %in% -76:-99, NA_real_, .))) %>%
+    tidyr::pivot_longer({{vars}}) %>%
+    na.omit() %>%
+    srvyr::as_survey_design(.data = .,
+                            ids = 1,
+                            weights = {{w}})  %>%
+    dplyr::group_by(name) %>%
+    dplyr::summarise(Min = min(value, na.rm = TRUE),
+              Max = max(value, na.rm = TRUE),
+              Median = srvyr::survey_median(value, na.rm = TRUE)[[1]],
+              Mittelwert = str_replace(sprintf("%.1f", srvyr::survey_mean(value, na.rm = TRUE)[[1]]), "\\.", ","),
+              SD = stringr::str_replace(sprintf("%.1f", srvyr::survey_sd(value, na.rm = TRUE)[[1]]), "\\.", ","),
+              N = n(),
+              Fehlwerte = nrow(data) - N) %>%
+    dplyr::left_join(sjlabelled::get_label(dplyr::select(data, {{vars}})) %>%
+                tibble::enframe(value = "label"))
+
 
 }
