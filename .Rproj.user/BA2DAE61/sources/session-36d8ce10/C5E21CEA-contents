@@ -70,18 +70,6 @@ get_fit <- function(model) {
       glue::glue("**Gemeindecluster** = ", cluster),
       .)
 
-  if (inherits(model, "clmm")) {
-
-    modellfit <-
-      modellfit %>%
-      c(.,
-        glue::glue("**R<sup>2</sup><sub>Konditional</sub>** = ", r2_conditional),
-        glue::glue("**R<sup>2</sup><sub>Marginal</sub>** = ", r2_marginal),
-        glue::glue("**ICC** = ", icc_clmm)
-      )
-
-  }
-
   modellfit %>%
     paste(collapse = "<br>")
 
