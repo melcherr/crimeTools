@@ -40,10 +40,6 @@ get_fit <- function(model) {
     cluster <- model$dims[["q"]]
 
     icc_clmm <- round(performance::icc(model)[[1]], 3)
-    r2_conditional <- round(performance::r2(model)[[1]], 2) %>%
-      unname()
-    r2_marginal <- round(performance::r2(model)[[2]], 2) %>%
-      unname()
 
   }
 
@@ -69,6 +65,14 @@ get_fit <- function(model) {
     c(glue::glue("**Befragte** = ", n),
       glue::glue("**Gemeindecluster** = ", cluster),
       .)
+
+  if (inherits(model, "clmm")) {
+
+    modellfit <- modellfit %>%
+      c(.,
+        glue::glue("**ICC** = ", icc_clmm))
+
+  }
 
   modellfit %>%
     paste(collapse = "<br>")
