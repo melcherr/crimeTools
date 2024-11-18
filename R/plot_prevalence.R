@@ -30,7 +30,7 @@ plot_prevalence <- function(data,
 
   if (is.data.frame(data)) {
 
-    data <- srvyr::as_survey_design(.data = data, weights = {{weight}})
+    data <- srvyr::as_survey_design(.data = data, ids = 1)
 
   }
 
