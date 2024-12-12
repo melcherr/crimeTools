@@ -151,6 +151,10 @@ plot_bar <- function(data,
 
     nudge_x <- max(dplyr::pull(data, {{xmax}})) * nudge_x
 
+    data <- data %>%
+      dplyr::mutate(text_x = ifelse({{x}} < 0, {{xmin}} - nudge_x, {{xmax}} + nudge_x))
+
+
     g <- g +
       geom_errorbar(aes(y = {{y}},
                         xmin = {{xmin}},
@@ -160,8 +164,9 @@ plot_bar <- function(data,
                     color = conf_color,
                     position = position_dodge(width = position_dodge_width),
                     show.legend = FALSE) +
-      geom_text(aes(y = {{y}},
-                    x = {{xmax}} + nudge_x,
+      geom_text(data = data,
+                aes(y = {{y}},
+                    x = text_x,
                     group = {{group}},
                     label = {{text}}),
                 position = position_dodge(width = position_dodge_width),
@@ -185,10 +190,15 @@ plot_bar <- function(data,
                                 expand = expand,
                                 labels = scale_x_labels)
 
-    nudge_x <- max(dplyr::pull(data, {{x}})) * nudge_x
+    nudge_x <- max(dplyr::pull(data, {{xmax}})) * nudge_x
 
-    g + geom_text(aes(y = {{y}},
-                      x = {{x}} + nudge_x,
+    data <- data %>%
+      dplyr::mutate(text_x = ifelse({{x}} < 0, {{xmin}} - nudge_x, {{xmax}} + nudge_x))
+
+
+    g + geom_text(data = data,
+                  aes(y = {{y}},
+                      x = text_x,
                       group = {{group}},
                       label = {{text}}),
                   position = position_dodge(width = position_dodge_width),
