@@ -40,6 +40,9 @@ plot_model(
   font_family = "Arial",
   axis_text_size = 13,
   outer_text_size = 13,
+  axis_y_hjust = 0.5,
+  strip_text = ggtext::element_markdown(size = 13, hjust = 0),
+  strip_background = element_rect(fill = strip_color, colour = "transparent"),
   ...
 )
 }

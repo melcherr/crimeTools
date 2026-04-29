@@ -1,36 +1,103 @@
 #' Plot Likert Scales as Centered Stacked Bars
 #'
-#' Plots likert scales with even and odd number of categories as centered stacked bar charts with and without missing values.
-#' @param data data frame or a weighted data frame of class 'tbl_svy'.
-#' @param vars variable names, must be a symbol or character vector.
-#' @param group (optional) only used if grouping variable is supplied.
-#' @param reverse_coding reverse coding of valid response categories.
-#' @param bar_color_manual (optional) user defined colors, must be a character vector of same length as the number of valid response categories.
-#' @param bar_color_auto define color space in RGB or CIE, must be a character vector of length > 1.
-#' @param na_values (optional) define missing values present in vars.
-#' @param na_group (optional, only used if group != NULL) define missing values present in group.
-#' @param na_drop logical, if TRUE missing values defined by na_values are dropped.
-#' @param na_plot determines how missing values are display if na_drop = TRUE.
-#'     'bar' (default) displays missing values as separate bar
-#'     'graph' displays missing values as separate bar chart
-#' @param na_bar_color character, defines bar color of na_plot
-#' @param na_bar_text_color character, defines label color if na_plot = 'bar'
-#' @param na_bar_text_nudge numeric, adjusts  label position if na_plot = 'bar'
-#' @return A-ggplot2::ggplot()-object or a list()
+#' Creates centered stacked bar charts for Likert-type items, supporting both even
+#' and odd numbers of response categories. The function works with raw data frames
+#' or `srvyr`-style survey design objects (`tbl_svy`), automatically handling
+#' proportions, weights, and missing values. Multiple items and groupings can be
+#' plotted together, with optional sorting, custom colors, and flexible label
+#' positioning.
+#'
+#' @param data A data frame or survey design object of class `'tbl_svy'`.
+#'   If a plain data frame is supplied, it is converted automatically with
+#'   `srvyr::as_survey_design(ids = 1)`.
+#' @param vars The Likert variable(s) to plot. Accepts:
+#'   \itemize{
+#'     \item A single variable (unquoted symbol)
+#'     \item Multiple variables (e.g. `c(item1, item2, item3)` or `item1:item5`)
+#'   }
+#' @param group (Optional) Grouping variable for stratified plots.
+#' @param grouping Character string, `"group_by_vars"` (default) or `"vars_by_group"`,
+#'   controlling whether each variable is grouped by `group`, or each group gets its own set of variables.
+#' @param grouping_title Logical. If `TRUE`, adds group names as plot subtitles when
+#'   `grouping = "vars_by_group"`.
+#' @param reverse_coding Logical. If `TRUE`, reverses the order of valid response categories.
+#' @param bar_color_manual (Optional) Manual color specification as a character vector,
+#'   matching the number of valid response categories.
+#' @param bar_color_auto (Optional) Automatic color gradient base, given as a vector of
+#'   two or more colors. Used when `bar_color_manual = NULL`.
+#' @param bar_width Numeric width of bars (default `0.65`).
+#' @param na_values (Optional) Vector of values in `vars` to treat as missing.
+#' @param na_group (Optional) Values in `group` to treat as missing.
+#' @param na_drop Logical; if `TRUE` (default), drops defined missing values. If `FALSE`,
+#'   missing values are visualized according to `na_plot`.
+#' @param na_plot Character; one of:
+#'   \itemize{
+#'     \item `'bar'` — (default) show missing values as a separate appended bar.
+#'     \item `'graph'` — show missing vs. valid as a separate chart beside the main plot.
+#'   }
+#' @param na_bar_color,na_bar_text_color Colors for missing-value bars and their labels.
+#' @param na_bar_text_nudge,na_graph_nudge Numeric offsets adjusting label positions
+#'   for missing values in `'bar'` or `'graph'` mode.
+#' @param na_graph_expand,na_graph_limits Additional adjustments for scaling the
+#'   missing-value side chart.
+#' @param na_label,valid_label Labels for missing and valid categories when
+#'   `na_plot = 'graph'`.
+#' @param text_position One of `"inside"`, `"outside"`, or `"outside_colored"`,
+#'   controlling where percentage labels appear.
+#' @param text_outside_nudge Horizontal offset for outside text.
+#' @param text_color,text_middle_color Colors for text labels.
+#' @param text_label_size Numeric text size for percentage labels.
+#' @param show_n Logical; if `TRUE`, appends case counts (`n = ...`) to item labels.
+#' @param sort Logical; if `TRUE` (default), sorts bars by response distribution.
+#' @param sort_func Summary function for sorting (default: `sum`).
+#' @param sort_val Vector of response category codes used for sorting.
+#' @param dec Integer number of decimals in percentage labels.
+#' @param axis_text_width Integer; wraps variable labels at this width.
+#' @param legend Character; `"standard"` (default), `"caption"`, or `"none"`.
+#' @param alpha Transparency of bars (0–1).
+#' @param guide A ggplot legend guide, defaults to `guide_legend(nrow = 1, override.aes = list(alpha = 1))`.
+#' @param offset_x Vector of horizontal x-axis offsets for adjusting the plot.
+#' @param title,subtitle,xlab,ylab Plot title, subtitle, and axis labels.
+#' @param font_family Font family for text labels.
+#' @param ... Additional arguments passed to `theme_crimeTools()` for theming.
+#'
+#' @details
+#' This function automatically handles Likert data visualization using weighted or
+#' unweighted survey designs. It detects odd/even numbers of response categories and
+#' centers the bars accordingly. When `na_drop = FALSE`, missing values can be visualized
+#' either as a side bar (`na_plot = "bar"`) or separate graph (`na_plot = "graph"`).
+#'
+#' ### Key features
+#' * Works with both raw and weighted (`srvyr`) data.
+#' * Supports multiple Likert variables and groups.
+#' * Auto-color generation or manual specification.
+#' * Options for label positions, text color, and missing-value visualization.
+#' * Handles both even and odd response scales symmetrically.
+#'
+#' @return
+#' Either a single `ggplot2::ggplot` object, or a `list`/`patchwork` layout when
+#' multiple groupings or `na_plot = "graph"` are used.
+#'
 #' @examples
 #' library(sjmisc)
 #' data(efc)
 #'
+#' # Simple Likert plot
 #' plot_likert(data = efc, vars = c82cop1:c90cop9)
 #'
-#' # Plot different variable by group combinations
+#' # Plot Likert items by gender
 #' plot_likert(data = efc, vars = c82cop1:c90cop9, group = e16sex)
 #'
-#' # use a weighted dataset
+#' # Weighted dataset example
 #' library(srvyr)
-#' efc_weighted <- as_survey_design(.data = efc, ids = 1)
-#'
+#' efc_weighted <- as_survey_design(efc, ids = 1)
 #' plot_likert(data = efc_weighted, vars = c82cop1:c90cop9)
+#'
+#' @seealso
+#' * [sjPlot::plot_likert()] for a high-level alternative.
+#' * [srvyr::as_survey_design()] for creating weighted designs.
+#'
+#' @keywords visualization survey likert ggplot srvyr
 #' @export
 
 plot_likert <- function(data,
@@ -76,17 +143,63 @@ plot_likert <- function(data,
                         font_family = "",
                         ...) {
 
-  if (text_position %nin% c("inside", "outside", "outside_colored")) {
+  if (!inherits(data, c("data.frame", "tbl_svy"))) {
 
-    stop("text_position must take values 'inside', 'outside' or 'outside_colored'")
+    stop("'data' must be a data frame or an object of class 'tbl_svy'.", call. = FALSE)
+
+  }
+
+  vars_check <- rlang::enquo(vars)
+  group_check <- rlang::enquo(group)
+
+  if (rlang::quo_is_missing(vars_check)) {
+
+    stop("You must supply one or more variables to 'vars'.", call. = FALSE)
 
   }
 
-  if (legend %nin% c("standard", "caption", "none")) {
+  if (!rlang::quo_is_null(group_check) && rlang::quo_is_missing(group_check)) {
 
-    stop("legend must take values 'standard', 'caption' or 'none'")
+    stop("Argument 'group' is invalid — check your syntax (unquoted variable names).", call. = FALSE)
 
   }
+
+  if (!is.null(bar_color_manual) && !is.character(bar_color_manual)) {
+
+    stop("'bar_color_manual' must be a character vector of colors.", call. = FALSE)
+
+  }
+
+  if (!is.null(bar_color_auto) && (!is.character(bar_color_auto) || length(bar_color_auto) < 2)) {
+
+    stop("'bar_color_auto' must be a character vector of length >= 2.", call. = FALSE)
+
+  }
+
+  if (!text_position %in% c("inside", "outside", "outside_colored")) {
+
+    stop("Invalid 'text_position'. Must be one of 'inside', 'outside', 'outside_colored'.", call. = FALSE)
+
+  }
+
+  if (!legend %in% c("standard", "caption", "none")) {
+
+    stop("Invalid 'legend'. Must be one of 'standard', 'caption', or 'none'.", call. = FALSE)
+
+  }
+
+  if (!grouping %in% c("group_by_vars", "vars_by_group")) {
+
+    stop("Invalid 'grouping'. Must be 'group_by_vars' or 'vars_by_group'.", call. = FALSE)
+
+  }
+
+  if (!is.logical(reverse_coding) || length(reverse_coding) != 1) {
+
+    stop("'reverse_coding' must be TRUE or FALSE.", call. = FALSE)
+
+  }
+
 
   if (is.data.frame(data)) data <- srvyr::as_survey_design(.data = data, ids = 1)
 
@@ -452,7 +565,8 @@ plot_likert <- function(data,
           srvy_data_left %>%
           dplyr::bind_rows(srvy_data_right) %>%
           dplyr::distinct(var, value, .keep_all = TRUE) %>%
-          dplyr::mutate(x_text = ifelse(value == middle_category, 0, x_text))
+          dplyr::mutate(value = as.numeric(value),
+                        x_text = ifelse(value == middle_category, 0, x_text))
 
       } else if (text_position %in% c("outside_colored", "outside")) {
 
@@ -460,7 +574,8 @@ plot_likert <- function(data,
           srvy_data_left %>%
           dplyr::bind_rows(srvy_data_right) %>%
           dplyr::distinct(var, value, .keep_all = TRUE) %>%
-          dplyr::mutate(x_text = ifelse(value == middle_category, 0, x_text),
+          dplyr::mutate(value = as.numeric(value),
+                        x_text = ifelse(value == middle_category, 0, x_text),
                         value = dplyr::case_when(value < middle_category ~ "low",
                                                  value == middle_category ~ "middle",
                                                  value > middle_category ~ "high"),
@@ -526,7 +641,8 @@ plot_likert <- function(data,
           srvy_data_left %>%
           dplyr::bind_rows(srvy_data_right) %>%
           dplyr::distinct(var, value, .keep_all = TRUE) %>%
-          dplyr::mutate(value = dplyr::case_when(value <= middle_category ~ "low",
+          dplyr::mutate(value = as.numeric(value),,
+                        value = dplyr::case_when(value <= middle_category ~ "low",
                                                  value > middle_category ~ "high"),
                         x_text = x_text + x/2) %>%
           dplyr::group_by(var, value) %>%
@@ -711,7 +827,7 @@ plot_likert <- function(data,
                                  xmin = xmin,
                                  xmax = xmax,
                                  fill = value),
-                             show.legend = FALSE,
+                             show.legend = TRUE,
                              alpha = alpha) +
           ggrepel::geom_text_repel(data = srvy_data_missing,
                                    aes(x = xmin - na_bar_text_nudge,

@@ -2,13 +2,17 @@
 % Please edit documentation in R/plot_predicted.R
 \name{plot_predicted}
 \alias{plot_predicted}
-\title{Returns an marginal effect plot}
+\title{Plot Marginal Effects from a Model}
 \usage{
 plot_predicted(
   model,
   var,
   steps = 0.01,
   type = "link",
+  rug = FALSE,
+  standardize = TRUE,
+  standardize_times = 1,
+  standardize_zero = FALSE,
   labels = NULL,
   colors = NULL,
   xlab = NULL,
@@ -16,12 +20,99 @@ plot_predicted(
   scale_y_limits = NULL,
   scale_x_limits = NULL,
   scale_x_breaks = waiver(),
+  scale_x_labels = NULL,
   guide = guide_legend(byrow = TRUE)
 )
 }
+\arguments{
+\item{model}{A fitted model object (e.g., from `glm()`, `lm()`, or similar)
+that contains a `model` data frame element.}
+
+\item{var}{The numeric variable for which to plot marginal effects. Must be
+present in the model's data.}
+
+\item{steps}{Numeric; the increment size used to create a sequence of values
+for predictions. Default is `0.01`.}
+
+\item{type}{Character; the prediction type passed to
+`calculate_predicted_values()`. Default is `"link"`.}
+
+\item{rug}{Logical; whether to add a rug plot of observed values along the
+x-axis. Default is `FALSE`.}
+
+\item{standardize}{Logical; if `TRUE`, the x-variable is standardized using
+the `standardize()` function. Default is `TRUE`.}
+
+\item{standardize_times}{Numeric; factor by which to multiply standardized
+values. Passed to `standardize()`. Default is `1`.}
+
+\item{standardize_zero}{Logical; if `TRUE`, centers the standardized variable
+around zero. Default is `FALSE`.}
+
+\item{labels}{Optional character vector providing labels for the different
+predicted variables (used in the legend).}
+
+\item{colors}{Optional vector of colors to manually specify line colors.
+If `NULL`, default ggplot colors are used.}
+
+\item{xlab}{Optional character string for the x-axis label. If `NULL`,
+the variable name is used.}
+
+\item{ylab}{Character string for the y-axis label. Default is
+`"Predicted Values"`.}
+
+\item{scale_y_limits}{Optional numeric vector of length 2 specifying the y-axis limits.}
+
+\item{scale_x_limits}{Optional numeric vector of length 2 specifying the x-axis limits.}
+
+\item{scale_x_breaks}{Axis breaks for the x-axis. Default is `waiver()`.}
+
+\item{scale_x_labels}{Optional function or vector for x-axis labels.}
+
+\item{guide}{Guide specification for the legend, passed to `guide_legend()`.}
+}
 \value{
-A-ggplot()-object
+A `ggplot` object showing the marginal effects of the specified
+variable on the predicted outcome.
 }
 \description{
-Returns an marginal effect plot
+This function generates a marginal effect plot showing predicted values
+from a fitted model across the range of a selected numeric variable.
+It allows customization of prediction scale, standardization, labels, colors,
+and axis appearance. Optionally, a rug plot of observed values can be added.
+}
+\details{
+The function:
+\itemize{
+  \item Extracts the selected variable from the model data.
+  \item Creates a sequence of values across the observed range.
+  \item Uses `calculate_predicted_values()` to compute predictions.
+  \item Optionally standardizes the variable.
+  \item Plots predicted values with `ggplot2`, adding styling and
+        optional rug plots.
+}
+
+The mean of the x-variable is shown as a dashed red vertical line for reference.
+}
+\examples{
+\dontrun{
+  library(ggplot2)
+  library(dplyr)
+
+  # Example using a simple linear model
+  model <- lm(mpg ~ wt + hp, data = mtcars)
+
+  # Plot marginal effects for 'wt'
+  plot_predicted(model, wt)
+
+  # Plot with rug and customized steps
+  plot_predicted(model, hp, steps = 0.05, rug = TRUE)
+}
+
+}
+\seealso{
+\code{\link{calculate_predicted_values}} for generating predicted values,
+\code{\link{standardize}} for variable standardization,
+\code{\link[ggplot2]{ggplot}} for plot customization,
+and \code{\link[lemon]{coord_capped_cart}} for capped coordinate axes.
 }

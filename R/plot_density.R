@@ -174,24 +174,45 @@ plot_density <- function(data,
 
   } else {
 
-    if (is.null(group_color)) group_color <- c('#3e6487', "#e36c33")
+    if (!quo_is_null(group_enquo)) {
 
-    data <- data %>% mutate({{group}} := sjlabelled::as_label({{group}},
-                                                              drop.na = TRUE,
-                                                              drop.levels = TRUE))
+      if (is.null(group_color)) group_color <- c('#3e6487', "#e36c33")
 
-    ggplot(data = data,
-           aes(x = {{x}},
-               y = {{group}},
-               group = {{group}},
-               fill = after_stat(x))) +
-      ggridges::geom_density_ridges_gradient(scale = scale,
-                                             show.legend = FALSE,
-                                             na.rm = TRUE) +
+      data <- data %>% mutate({{group}} := sjlabelled::as_label({{group}},
+                                                                drop.na = TRUE,
+                                                                drop.levels = TRUE))
+
+      p <- ggplot(data = data,
+                  aes(x = {{x}},
+                      y = {{group}},
+                      group = {{group}},
+                      fill = after_stat(x))) +
+        ggridges::geom_density_ridges_gradient(scale = scale,
+                                               show.legend = FALSE,
+                                               na.rm = TRUE,
+                                               alpha = alpha) +
+        scale_fill_gradientn(colours = group_color)
+
+
+    } else {
+
+      p <- ggplot(data = data,
+                  aes(x = {{x}},
+                      y = 1,
+                      fill = after_stat(x))) +
+        ggridges::geom_density_ridges_gradient(scale = scale,
+                                               show.legend = FALSE,
+                                               na.rm = TRUE,
+                                               alpha = alpha) +
+        scale_fill_gradientn(colours = fill) +
+        scale_y_continuous(labels = scale_y_labels)
+
+    }
+
+    p +
       geom_vline(xintercept = area_limits[[1]],
                  color = "darkred",
                  linetype = "dashed") +
-      scale_fill_gradientn(colours = group_color) +
       scale_x_continuous(breaks = scale_x_breaks,
                          labels = scale_x_labels) +
       crimeTools:::theme_crimeTools() +

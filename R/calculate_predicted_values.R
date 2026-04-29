@@ -37,7 +37,7 @@ calculate_predicted_values <- function(model,
 
   }
 
-  if (inherits(model, "clmm")) {
+  if (inherits(model, c("clm", "clmm"))) {
 
     data <- as.matrix(model$model[,-c(1, length(model$model))])
 
@@ -81,7 +81,7 @@ calculate_predicted_values <- function(model,
 
       intercepts <- ordinal::ranef.clmm(model) %>%
         as.data.frame() %>%
-        dplyr::rownames_to_column() %>%
+        tibble::rownames_to_column() %>%
         setNames(c("grp", "condval"))
 
       pred <- map_dfc(.x = alpha,

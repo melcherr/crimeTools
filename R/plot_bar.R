@@ -136,7 +136,7 @@ plot_bar <- function(data,
 
     if (legend == "caption") {
 
-      labels <- unique(g$plot$data$group_value)
+      labels <- unique(pull(g$data, {{group}}))
 
       g <- g +
         labs(caption = glue::glue_collapse(x = glue::glue('<span style="color:{group_color}">{labels}</span>'),

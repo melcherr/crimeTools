@@ -43,6 +43,9 @@ plot_model <- function(data,
                        font_family = "Arial",
                        axis_text_size = 13,
                        outer_text_size = 13,
+                       axis_y_hjust = 0.5,
+                       strip_text = ggtext::element_markdown(size = 13, hjust = 0),
+                       strip_background = element_rect(fill = strip_color, colour = "transparent"),
                        ...) {
 
   facet_group_row <- rlang::enquo(facet_group_row)
@@ -107,16 +110,16 @@ plot_model <- function(data,
                                                plot.subtitle = element_text(size = 16,
                                                                             margin = margin(0, 0, 20 , 0)),
                                                plot.caption = ggtext::element_textbox_simple(halign = 0,
-                                                                                             margin = margin(-90,0,0,0),
-                                                                                             padding = margin(5, 5, 5, 5),
+                                                                                             margin = margin(-90, 0, 0, 0),
+                                                                                             padding = margin(4, 4, 4, 4),
                                                                                              lineheight = 1.35,
                                                                                              linetype = 1,
                                                                                              linewidth = 1.25,
-                                                                                             size = 12,
+                                                                                             size = grid::unit(13, "pt"),
                                                                                              hjust = 0,
                                                                                              maxwidth = grid::unit(6, "cm"),
-                                                                                             box.color = "#f6d2c1",
-                                                                                             fill = "#fbede6",
+                                                                                             box.color = patchwork_color,
+                                                                                             fill = strip_color,
                                                                                              r = grid::unit(3, "pt")),
                                                plot.caption.position = "plot")) &
       theme(legend.position = legend_position)
@@ -198,9 +201,10 @@ plot_model <- function(data,
       theme_tufte() +
       theme(text = element_text(family = font_family),
             axis.text.x.bottom = ggtext::element_markdown(color = "black",
-                                                  size = axis_text_size),
+                                                          size = axis_text_size),
             axis.text.y.left = ggtext::element_markdown(color = "black",
-                                                size = axis_text_size),
+                                                        size = axis_text_size,
+                                                        hjust = axis_y_hjust),
             axis.ticks.y = element_blank(),
             axis.line = element_line(),
             axis.line.y.left = element_blank(),
@@ -212,13 +216,12 @@ plot_model <- function(data,
             plot.margin = margin(0, 0 ,0 ,0),
             panel.border = element_blank(),
             panel.grid.major.x = element_line(linewidth = 0.1, color = "gray90"),
-            panel.grid.major.y = element_line(linewidth = 0.1, color = "gray90"),
+            panel.grid.major.y = element_blank(),
             legend.position = legend_position,
             legend.text = element_text(size = outer_text_size),
-            strip.text = ggtext::element_markdown(size = outer_text_size,
-                                                  hjust = 0),
-            strip.background = element_rect(fill = strip_color,
-                                            colour = "transparent")) +
+            strip.text = strip_text,
+            strip.background = strip_background,
+            ...) +
       lemon::coord_capped_flip(ylim = ylim, bottom ='both') +
       xlab(xlab) + ylab(ylab) +
       labs(title = title,
@@ -227,8 +230,9 @@ plot_model <- function(data,
     if (!rlang::quo_is_null(facet_group_row)) {
 
       g + ggforce::facet_col(vars({{facet_group_row}}),
-                             space = "free",
-                             scales = scales)
+                             space = space,
+                             scales = scales,
+                             drop = TRUE)
     }
 
     else return(g)

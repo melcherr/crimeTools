@@ -2,22 +2,54 @@
 % Please edit documentation in R/standardize.R
 \name{standardize}
 \alias{standardize}
-\title{Standardizes and normalizes numeric vectors.}
+\title{Standardize or Normalize Numeric Vectors}
 \usage{
-standardize(variable, type = "divide_by_sd", times = 2)
+standardize(variable, type = "divide_by_sd", times = 2, zero = TRUE)
 }
 \arguments{
-\item{variable}{a numeric vector}
+\item{variable}{A numeric vector to be standardized or normalized.}
 
-\item{type, }{takes the values "divide_by_sd" and "normalize"}
+\item{type}{A character string indicating the type of transformation.
+Must be either `"divide_by_sd"` (subtract mean and divide by standard deviation)
+or `"normalize"` (rescale to the range \[0, 1\] or a multiple thereof).
+Defaults to `"divide_by_sd"`.}
+
+\item{times}{A numeric scalar controlling the scaling intensity.
+For `type = "divide_by_sd"`, the standardized values are divided by
+`times * sd(variable)`. For `type = "normalize"`, the result is multiplied
+by `times` if `zero = TRUE`, or rescaled to \[1, times\] if `zero = FALSE`.
+Defaults to `2`.}
+
+\item{zero}{Logical. If `TRUE`, normalized values are scaled between `0` and `times`.
+If `FALSE`, normalized values are scaled between `1` and `times`.
+Ignored when `type = "divide_by_sd"`. Defaults to `TRUE`.}
 }
 \value{
-a numeric vector
+A numeric vector of the same length as `variable`, with standardized
+  or normalized values.
 }
 \description{
-Returns a vector of standardized values.
+This function transforms a numeric vector by either standardizing
+(centering and dividing by standard deviation) or normalizing
+(scaling to a range from 0 to a specified maximum).
+}
+\details{
+The `"divide_by_sd"` option standardizes data by subtracting the mean
+and dividing by the standard deviation (optionally scaled by `times`).
+
+The `"normalize"` option rescales data linearly to the range
+\[0, 1\] (or another range depending on `times` and `zero`).
 }
 \examples{
 x <- rnorm(100)
-standardize(x) ;
+
+# Standardize by mean and standard deviation
+standardize(x)
+
+# Normalize to range 0–2
+standardize(x, type = "normalize")
+
+# Normalize to range 1–3
+standardize(x, type = "normalize", times = 3, zero = FALSE)
+
 }

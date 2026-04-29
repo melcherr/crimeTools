@@ -50,52 +50,140 @@ plot_likert(
 )
 }
 \arguments{
-\item{data}{data frame or a weighted data frame of class 'tbl_svy'.}
+\item{data}{A data frame or survey design object of class `'tbl_svy'`.
+If a plain data frame is supplied, it is converted automatically with
+`srvyr::as_survey_design(ids = 1)`.}
 
-\item{vars}{variable names, must be a symbol or character vector.}
+\item{vars}{The Likert variable(s) to plot. Accepts:
+\itemize{
+  \item A single variable (unquoted symbol)
+  \item Multiple variables (e.g. `c(item1, item2, item3)` or `item1:item5`)
+}}
 
-\item{group}{(optional) only used if grouping variable is supplied.}
+\item{group}{(Optional) Grouping variable for stratified plots.}
 
-\item{reverse_coding}{reverse coding of valid response categories.}
+\item{grouping}{Character string, `"group_by_vars"` (default) or `"vars_by_group"`,
+controlling whether each variable is grouped by `group`, or each group gets its own set of variables.}
 
-\item{bar_color_manual}{(optional) user defined colors, must be a character vector of same length as the number of valid response categories.}
+\item{grouping_title}{Logical. If `TRUE`, adds group names as plot subtitles when
+`grouping = "vars_by_group"`.}
 
-\item{bar_color_auto}{define color space in RGB or CIE, must be a character vector of length > 1.}
+\item{reverse_coding}{Logical. If `TRUE`, reverses the order of valid response categories.}
 
-\item{na_values}{(optional) define missing values present in vars.}
+\item{bar_color_manual}{(Optional) Manual color specification as a character vector,
+matching the number of valid response categories.}
 
-\item{na_group}{(optional, only used if group != NULL) define missing values present in group.}
+\item{bar_color_auto}{(Optional) Automatic color gradient base, given as a vector of
+two or more colors. Used when `bar_color_manual = NULL`.}
 
-\item{na_drop}{logical, if TRUE missing values defined by na_values are dropped.}
+\item{bar_width}{Numeric width of bars (default `0.65`).}
 
-\item{na_plot}{determines how missing values are display if na_drop = TRUE.
-'bar' (default) displays missing values as separate bar
-'graph' displays missing values as separate bar chart}
+\item{na_values}{(Optional) Vector of values in `vars` to treat as missing.}
 
-\item{na_bar_color}{character, defines bar color of na_plot}
+\item{na_group}{(Optional) Values in `group` to treat as missing.}
 
-\item{na_bar_text_color}{character, defines label color if na_plot = 'bar'}
+\item{na_drop}{Logical; if `TRUE` (default), drops defined missing values. If `FALSE`,
+missing values are visualized according to `na_plot`.}
 
-\item{na_bar_text_nudge}{numeric, adjusts  label position if na_plot = 'bar'}
+\item{na_plot}{Character; one of:
+\itemize{
+  \item `'bar'` — (default) show missing values as a separate appended bar.
+  \item `'graph'` — show missing vs. valid as a separate chart beside the main plot.
+}}
+
+\item{na_bar_color, na_bar_text_color}{Colors for missing-value bars and their labels.}
+
+\item{na_bar_text_nudge, na_graph_nudge}{Numeric offsets adjusting label positions
+for missing values in `'bar'` or `'graph'` mode.}
+
+\item{na_graph_expand, na_graph_limits}{Additional adjustments for scaling the
+missing-value side chart.}
+
+\item{na_label, valid_label}{Labels for missing and valid categories when
+`na_plot = 'graph'`.}
+
+\item{text_position}{One of `"inside"`, `"outside"`, or `"outside_colored"`,
+controlling where percentage labels appear.}
+
+\item{text_outside_nudge}{Horizontal offset for outside text.}
+
+\item{text_color, text_middle_color}{Colors for text labels.}
+
+\item{text_label_size}{Numeric text size for percentage labels.}
+
+\item{show_n}{Logical; if `TRUE`, appends case counts (`n = ...`) to item labels.}
+
+\item{sort}{Logical; if `TRUE` (default), sorts bars by response distribution.}
+
+\item{sort_func}{Summary function for sorting (default: `sum`).}
+
+\item{sort_val}{Vector of response category codes used for sorting.}
+
+\item{dec}{Integer number of decimals in percentage labels.}
+
+\item{axis_text_width}{Integer; wraps variable labels at this width.}
+
+\item{legend}{Character; `"standard"` (default), `"caption"`, or `"none"`.}
+
+\item{alpha}{Transparency of bars (0–1).}
+
+\item{guide}{A ggplot legend guide, defaults to `guide_legend(nrow = 1, override.aes = list(alpha = 1))`.}
+
+\item{offset_x}{Vector of horizontal x-axis offsets for adjusting the plot.}
+
+\item{title, subtitle, xlab, ylab}{Plot title, subtitle, and axis labels.}
+
+\item{font_family}{Font family for text labels.}
+
+\item{...}{Additional arguments passed to `theme_crimeTools()` for theming.}
 }
 \value{
-A-ggplot2::ggplot()-object or a list()
+Either a single `ggplot2::ggplot` object, or a `list`/`patchwork` layout when
+multiple groupings or `na_plot = "graph"` are used.
 }
 \description{
-Plots likert scales with even and odd number of categories as centered stacked bar charts with and without missing values.
+Creates centered stacked bar charts for Likert-type items, supporting both even
+and odd numbers of response categories. The function works with raw data frames
+or `srvyr`-style survey design objects (`tbl_svy`), automatically handling
+proportions, weights, and missing values. Multiple items and groupings can be
+plotted together, with optional sorting, custom colors, and flexible label
+positioning.
+}
+\details{
+This function automatically handles Likert data visualization using weighted or
+unweighted survey designs. It detects odd/even numbers of response categories and
+centers the bars accordingly. When `na_drop = FALSE`, missing values can be visualized
+either as a side bar (`na_plot = "bar"`) or separate graph (`na_plot = "graph"`).
+
+### Key features
+* Works with both raw and weighted (`srvyr`) data.
+* Supports multiple Likert variables and groups.
+* Auto-color generation or manual specification.
+* Options for label positions, text color, and missing-value visualization.
+* Handles both even and odd response scales symmetrically.
 }
 \examples{
 library(sjmisc)
 data(efc)
 
+# Simple Likert plot
 plot_likert(data = efc, vars = c82cop1:c90cop9)
 
-# Plot different variable by group combinations
+# Plot Likert items by gender
 plot_likert(data = efc, vars = c82cop1:c90cop9, group = e16sex)
 
-# use a weighted dataset
+# Weighted dataset example
 library(srvyr)
-efc_weighted <- as_survey_design(.data = efc, ids = 1)
-
+efc_weighted <- as_survey_design(efc, ids = 1)
 plot_likert(data = efc_weighted, vars = c82cop1:c90cop9)
+
 }
+\seealso{
+* [sjPlot::plot_likert()] for a high-level alternative.
+* [srvyr::as_survey_design()] for creating weighted designs.
+}
+\keyword{ggplot}
+\keyword{likert}
+\keyword{srvyr}
+\keyword{survey}
+\keyword{visualization}

@@ -2,6 +2,7 @@ E:/Documents/Arbeitsordner/SIPS/SKiSAX/Datenanalysen/02_Skripte/01_Datenaufberei
 E:/Documents/Arbeitsordner/SIPS/SKiSAX/Datenanalysen/02_Skripte/03_Bericht_Kriminalitätsfurcht/01_Datenvorbereitung.R="6DFE6A3C"
 E:/Documents/Arbeitsordner/SIPS/SKiSAX/Datenanalysen/02_Skripte/03_Bericht_Kriminalitätsfurcht/02_Deskription.R="DA701CD1"
 E:/Documents/Installationsordner/R/personal_website/export_git.sh="75CBCF6A"
+E:/Documents/Installationsordner/R_PackageDev/Update_and_Install.R="045E56C3"
 E:/Documents/Installationsordner/R_PackageDev/crimeTools/DESCRIPTION="4858154C"
 E:/Documents/Installationsordner/R_PackageDev/crimeTools/NAMESPACE="84911753"
 E:/Documents/Installationsordner/R_PackageDev/crimeTools/R/calculate_predicted_values.R="7D69F734"
@@ -24,4 +25,5 @@ E:/Documents/Installationsordner/R_PackageDev/crimeTools/R/wrap_tidy.R="C1E27ADF
 E:/Documents/Installationsordner/R_PackageDev/crimeTools/inst/rstudio/addins.dcf="9036BB7C"
 E:/Documents/Installationsordner/R_PackageDev/crimeTools/man/plot_likert.Rd="12013ED0"
 E:/Documents/Installationsordner/R_PackageDev/crimeTools/tests/testthat/test-plot_likert.R="D4BD2409"
+E:/Documents/Installationsordner/R_PackageDev/crimeTools/tests/testthat/test-plot_prevalence.R="70DA08F7"
 E:/Documents/Installationsordner/R_PackageDev/export_git.sh="D08AE680"
